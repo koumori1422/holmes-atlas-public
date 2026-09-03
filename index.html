@@ -246,6 +246,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .danger-delete-btn:disabled{opacity:.4;cursor:not-allowed;}
 
 .timeline{position:absolute;inset:0;background:var(--parchment);color:var(--charcoal);overflow-y:auto;display:none;padding:20px 26px 60px;}
+.timeline-close{position:absolute;top:14px;right:20px;background:none;border:none;font-size:1.8rem;line-height:1;color:var(--slate);cursor:pointer;padding:4px 8px;}
+.timeline-close:hover{color:var(--burgundy);}
 .timeline.open{display:block;}
 .timeline h2{font-family:'Playfair Display',serif;font-size:1.5rem;margin:4px 0 4px;color:var(--ink);}
 .timeline-note{font-size:.85rem;opacity:.7;margin-bottom:18px;}
@@ -309,7 +311,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
     </button>
     <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図に切り替え">🗺️ 古地図</button>
-    <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示" style="right:150px;">核心のみ表示</button>
+    <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示" style="right:150px;">正典登場地のみ</button>
     <div class="nearby-panel" id="nearbyPanel"></div>
     <div class="panel" id="panel">
       <button class="panel-close" id="panelClose">×</button>
@@ -1345,7 +1347,7 @@ const coreOnlyBtn = document.getElementById('coreOnlyBtn');
 coreOnlyBtn.addEventListener('click', ()=>{
   coreOnlyFilter = !coreOnlyFilter;
   coreOnlyBtn.classList.toggle('active', coreOnlyFilter);
-  coreOnlyBtn.textContent = coreOnlyFilter ? '全て表示' : '核心のみ表示';
+  coreOnlyBtn.textContent = coreOnlyFilter ? '全て表示' : '正典登場地のみ';
   renderMarkers();
   renderIndex();
 });
@@ -1976,7 +1978,7 @@ function openEditModal(targetId){
         <option value="core" ${e.relevance!=='peripheral'?'selected':''}>核心（正典・パスティーシュに直結する場所）</option>
         <option value="peripheral" ${e.relevance==='peripheral'?'selected':''}>周辺情報（伝記的・ファン向けなど）</option>
       </select>
-      <div class="hint">地図上のピンの大きさ・色や「核心のみ表示」フィルターに反映されます。</div>
+      <div class="hint">地図上のピンの大きさ・色や「正典登場地のみ」フィルターに反映されます。</div>
     </div>` : ''}
     <div class="field"><label>関連付ける項目</label><div class="checklist">${relatedChecklist(targetId, e.related||[])}</div></div>
     <div class="modal-actions"><button class="modal-cancel" id="f-cancel">キャンセル</button><button class="modal-submit" id="f-submit">保存する</button></div>
@@ -2575,7 +2577,8 @@ function renderTimeline(){
       ${renderJournalCard(j)}
     </div>`;
   }).join('') : '<p class="empty-msg">まだ訪問記録がありません。</p>';
-  timelineEl.innerHTML = `<h2>訪問記録タイムライン</h2><div class="timeline-note">${items.length}件を新しい順に表示しています。</div><div>${html}</div>`;
+  timelineEl.innerHTML = `<button class="timeline-close" id="timelineClose">×</button><h2>訪問記録タイムライン</h2><div class="timeline-note">${items.length}件を新しい順に表示しています。</div><div>${html}</div>`;
+  document.getElementById('timelineClose').addEventListener('click', ()=>timelineEl.classList.remove('open'));
   timelineEl.querySelectorAll('[data-tl-entity]').forEach(card=>{
     card.addEventListener('click', (ev)=>{
       if(ev.target.closest('[data-del-journal]')) return;

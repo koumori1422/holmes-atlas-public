@@ -224,6 +224,14 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .modal-cancel{background:none;border:1px solid var(--line);color:var(--charcoal);padding:7px 16px;border-radius:3px;cursor:pointer;}
 .modal-submit{background:var(--brass);border:none;color:#fff;padding:7px 18px;border-radius:3px;cursor:pointer;}
 .danger-zone{margin-top:22px;padding-top:14px;border-top:1px dashed var(--burgundy);text-align:right;}
+.review-count-badge{background:var(--burgundy);color:#fff;border-radius:10px;padding:1px 7px;font-size:.72rem;margin-left:4px;}
+.review-list{max-height:420px;overflow-y:auto;margin:14px 0;}
+.proposal-card{background:var(--parchment-2);border:1px solid var(--line);border-radius:4px;padding:12px 14px;margin-bottom:10px;color:var(--charcoal);}
+.proposal-head{font-size:.95rem;margin-bottom:2px;}
+.proposal-kind{display:inline-block;background:var(--teal);color:#fff;font-size:.68rem;padding:1px 8px;border-radius:2px;margin-right:6px;}
+.proposal-meta{font-size:.72rem;opacity:.65;margin-bottom:8px;}
+.proposal-detail{font-size:.85rem;line-height:1.6;margin-bottom:10px;}
+.proposal-actions{display:flex;gap:8px;}
 .danger-delete-btn{background:none;border:1px solid var(--burgundy);color:var(--burgundy);padding:6px 16px;border-radius:3px;cursor:pointer;font-size:.82rem;}
 .danger-delete-btn:hover:not(:disabled){background:var(--burgundy);color:#fff;}
 .danger-delete-btn:disabled{opacity:.4;cursor:not-allowed;}
@@ -322,14 +330,22 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 
 // ---------- 会員ログイン ----------
 let currentUser = null;
+// ---------- 審査担当者 ----------
+const REVIEWER_EMAILS = ['kou.m1422@gmail.com'];
+function isReviewer(){
+  return !!(currentUser && REVIEWER_EMAILS.includes(currentUser.email));
+}
 function renderAuthArea(){
   const el = document.getElementById('authArea');
   if(currentUser){
     const name = currentUser.user_metadata?.display_name || currentUser.email;
-    el.innerHTML = `<span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="logoutBtn">ログアウト</button>`;
+    const reviewBtn = isReviewer() ? `<button class="hbtn primary" id="reviewDashBtn">審査ダッシュボード<span class="review-count-badge" id="reviewCountBadge"></span></button>` : '';
+    el.innerHTML = `${reviewBtn}<span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="logoutBtn">ログアウト</button>`;
     document.getElementById('logoutBtn').addEventListener('click', async ()=>{
       await supabaseClient.auth.signOut();
     });
+    document.getElementById('reviewDashBtn')?.addEventListener('click', openReviewDashboard);
+    updateReviewCountBadge();
   } else {
     el.innerHTML = `<button class="hbtn" id="loginBtn">ログイン</button><button class="hbtn" id="signupBtn">会員登録</button>`;
     document.getElementById('loginBtn').addEventListener('click', ()=>openAuthModal('login'));
@@ -935,6 +951,7 @@ let additions = {};   // { newId: {type,name,desc,image,coords,related:[]} }
 let personalNotes = {}; // { entityId: {rating, visitedDate, ownedEdition, notes} }
 let journal = [];     // [{id, entityId, placeName, coords, rating, comment, image, visitedDate, createdAt}]
 let customAliases = {}; // { 正規化されたカタカナキー: "英語表記" } — サイト上で追加できる地名対応辞書
+let proposals = [];   // [{id, kind:'new'|'edit', targetType, targetId, draft, authorId, authorName, status, createdAt, reviewNote}]
 
 async function safeGet(key){
   try{
@@ -951,14 +968,15 @@ async function safeSet(key, value){
   }catch(e){ console.error(e); showToast('保存に失敗しました。'); return false; }
 }
 async function loadAll(){
-  const [ov, add, notes, jour, aliases] = await Promise.all([
-    safeGet('p-overrides'), safeGet('p-additions'), safeGet('p-notes'), safeGet('p-journal'), safeGet('p-aliases')
+  const [ov, add, notes, jour, aliases, props] = await Promise.all([
+    safeGet('p-overrides'), safeGet('p-additions'), safeGet('p-notes'), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals')
   ]);
   overrides = ov || {};
   additions = add || {};
   personalNotes = notes || {};
   journal = jour || [];
   customAliases = aliases || {};
+  proposals = props || [];
 }
 
 function buildData(){
@@ -1854,6 +1872,7 @@ function openEntityModal(prefill){
   });
   document.getElementById('f-cancel').addEventListener('click', closeModal);
   document.getElementById('f-submit').addEventListener('click', async ()=>{
+    if(!currentUser){ showToast('投稿にはログインが必要です。'); return; }
     const name = document.getElementById('f-name').value.trim();
     const desc = document.getElementById('f-desc').value.trim();
     if(!name || !desc){ showToast('名称と説明文は必須です。'); return; }
@@ -1867,19 +1886,31 @@ function openEntityModal(prefill){
     }
     const related = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
     const canon = type==='work' ? (document.getElementById('f-canon').value === 'true') : undefined;
-    const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-    additions[newId] = {type, name, desc, image: uploadedImageData || document.getElementById('f-image').value.trim() || null, coords, canon, relevance, related};
-    await safeSet('p-additions', additions);
-    related.forEach(relId=>{
-      overrides[relId] = overrides[relId] || {};
-      const extra = new Set(overrides[relId].extraRelated||[]);
-      extra.add(newId);
-      overrides[relId].extraRelated = Array.from(extra);
-    });
-    await safeSet('p-overrides', overrides);
-    DATA = buildData(); renderMarkers(); renderIndex();
-    closeModal(); showToast('追加しました。');
-    showEntity(newId);
+    const draft = {type, name, desc, image: uploadedImageData || document.getElementById('f-image').value.trim() || null, coords, canon, relevance, related};
+    if(isReviewer()){
+      const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+      additions[newId] = draft;
+      await safeSet('p-additions', additions);
+      related.forEach(relId=>{
+        overrides[relId] = overrides[relId] || {};
+        const extra = new Set(overrides[relId].extraRelated||[]);
+        extra.add(newId);
+        overrides[relId].extraRelated = Array.from(extra);
+      });
+      await safeSet('p-overrides', overrides);
+      DATA = buildData(); renderMarkers(); renderIndex();
+      closeModal(); showToast('追加しました。');
+      showEntity(newId);
+    } else {
+      proposals.push({
+        id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+        kind: 'new', targetType: type, targetId: null, draft,
+        authorId: currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email,
+        status: 'pending', createdAt: Date.now(), reviewNote: ''
+      });
+      await safeSet('p-proposals', proposals);
+      closeModal(); showToast('提案を送信しました。審査担当者の確認後に反映されます。');
+    }
   });
 }
 document.getElementById('addEntityBtn').addEventListener('click', ()=>openEntityModal());
@@ -1914,9 +1945,9 @@ function openEditModal(targetId){
     </div>` : ''}
     <div class="field"><label>関連付ける項目</label><div class="checklist">${relatedChecklist(targetId, e.related||[])}</div></div>
     <div class="modal-actions"><button class="modal-cancel" id="f-cancel">キャンセル</button><button class="modal-submit" id="f-submit">保存する</button></div>
-    <div class="danger-zone">
+    ${isReviewer() ? `<div class="danger-zone">
       <button class="danger-delete-btn" id="f-delete-open">この項目を削除する</button>
-    </div>`;
+    </div>` : ''}`;
   overlay.classList.add('open');
   wireImageUpload('f-image-file','f-image-preview', d=>uploadedImageData=d);
   if(e.type==='place'){
@@ -1939,27 +1970,37 @@ function openEditModal(targetId){
     });
   }
   document.getElementById('f-cancel').addEventListener('click', closeModal);
-  document.getElementById('f-delete-open').addEventListener('click', ()=>openDeleteConfirmModal(targetId, e.name));
+  document.getElementById('f-delete-open')?.addEventListener('click', ()=>openDeleteConfirmModal(targetId, e.name));
   document.getElementById('f-submit').addEventListener('click', async ()=>{
+    if(!currentUser){ showToast('編集にはログインが必要です。'); return; }
     const name = document.getElementById('f-name').value.trim();
     const desc = document.getElementById('f-desc').value.trim();
     if(!name || !desc){ showToast('名称と説明文は必須です。'); return; }
-    overrides[targetId] = overrides[targetId] || {};
-    overrides[targetId].name = name;
-    overrides[targetId].desc = desc;
     const img = uploadedImageData || document.getElementById('f-image').value.trim();
-    if(img) overrides[targetId].image = img;
+    const draft = { name, desc };
+    if(img) draft.image = img;
     if(e.type==='place'){
       const lat = parseFloat(document.getElementById('f-lat').value), lng = parseFloat(document.getElementById('f-lng').value);
-      if(!isNaN(lat) && !isNaN(lng)) overrides[targetId].coords = [lat,lng];
-      overrides[targetId].relevance = document.getElementById('f-relevance').value;
+      if(!isNaN(lat) && !isNaN(lng)) draft.coords = [lat,lng];
+      draft.relevance = document.getElementById('f-relevance').value;
     }
-    const related = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
-    overrides[targetId].extraRelated = related;
-    await safeSet('p-overrides', overrides);
-    DATA = buildData(); renderMarkers(); renderIndex();
-    closeModal(); showToast('保存しました。');
-    showEntity(targetId, {fromTrail:true});
+    draft.extraRelated = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
+    if(isReviewer()){
+      overrides[targetId] = Object.assign(overrides[targetId] || {}, draft);
+      await safeSet('p-overrides', overrides);
+      DATA = buildData(); renderMarkers(); renderIndex();
+      closeModal(); showToast('保存しました。');
+      showEntity(targetId, {fromTrail:true});
+    } else {
+      proposals.push({
+        id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+        kind: 'edit', targetType: e.type, targetId, draft,
+        authorId: currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email,
+        status: 'pending', createdAt: Date.now(), reviewNote: ''
+      });
+      await safeSet('p-proposals', proposals);
+      closeModal(); showToast('編集案を送信しました。審査担当者の確認後に反映されます。');
+    }
   });
 }
 
@@ -2013,6 +2054,89 @@ function openExportModal(){
 }
 document.getElementById('exportBtn').addEventListener('click', openExportModal);
 
+function updateReviewCountBadge(){
+  const badge = document.getElementById('reviewCountBadge');
+  if(!badge) return;
+  const count = proposals.filter(p=>p.status==='pending').length;
+  badge.textContent = count > 0 ? ' '+count : '';
+}
+function openReviewDashboard(){
+  const pending = proposals.filter(p=>p.status==='pending').sort((a,b)=>a.createdAt-b.createdAt);
+  modalBody.innerHTML = `
+    <h3>審査ダッシュボード</h3>
+    <div class="modal-sub">${pending.length}件の提案が承認待ちです。</div>
+    <div class="review-list">
+      ${pending.length===0 ? '<div class="alias-list-empty">今のところ提案はありません。</div>' : pending.map(p=>renderProposalCard(p)).join('')}
+    </div>
+    <div class="modal-actions"><button class="modal-cancel" id="review-close">閉じる</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('review-close').addEventListener('click', closeModal);
+  pending.forEach(p=>{
+    document.getElementById('approve-'+p.id)?.addEventListener('click', ()=>approveProposal(p.id));
+    document.getElementById('reject-'+p.id)?.addEventListener('click', ()=>rejectProposal(p.id));
+  });
+}
+function renderProposalCard(p){
+  const kindLabel = p.kind==='new' ? '新規追加' : '編集';
+  const targetName = p.kind==='edit' ? (DATA[p.targetId]?.name || p.targetId) : p.draft.name;
+  const dateStr = new Date(p.createdAt).toLocaleString('ja-JP');
+  let detailHtml = '';
+  if(p.kind==='new'){
+    detailHtml = `<div class="proposal-detail">
+      <div><strong>種別：</strong>${TYPE_LABEL[p.targetType]||p.targetType}</div>
+      <div><strong>名前：</strong>${escapeHtml(p.draft.name)}</div>
+      <div><strong>説明：</strong>${escapeHtml(p.draft.desc)}</div>
+    </div>`;
+  } else {
+    detailHtml = `<div class="proposal-detail">
+      ${p.draft.name ? `<div><strong>名前を変更：</strong>${escapeHtml(p.draft.name)}</div>` : ''}
+      ${p.draft.desc ? `<div><strong>説明を変更：</strong>${escapeHtml(p.draft.desc)}</div>` : ''}
+    </div>`;
+  }
+  return `<div class="proposal-card">
+    <div class="proposal-head"><span class="proposal-kind">${kindLabel}</span> <strong>${escapeHtml(targetName)}</strong></div>
+    <div class="proposal-meta">${escapeHtml(p.authorName)} ・ ${dateStr}</div>
+    ${detailHtml}
+    <div class="proposal-actions">
+      <button class="modal-submit" id="approve-${p.id}">承認する</button>
+      <button class="danger-delete-btn" id="reject-${p.id}">却下する</button>
+    </div>
+  </div>`;
+}
+async function approveProposal(propId){
+  const p = proposals.find(x=>x.id===propId);
+  if(!p) return;
+  if(p.kind==='new'){
+    const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    additions[newId] = p.draft;
+    await safeSet('p-additions', additions);
+    (p.draft.related||[]).forEach(relId=>{
+      overrides[relId] = overrides[relId] || {};
+      const extra = new Set(overrides[relId].extraRelated||[]);
+      extra.add(newId);
+      overrides[relId].extraRelated = Array.from(extra);
+    });
+    await safeSet('p-overrides', overrides);
+  } else {
+    overrides[p.targetId] = Object.assign(overrides[p.targetId] || {}, p.draft);
+    await safeSet('p-overrides', overrides);
+  }
+  p.status = 'approved';
+  await safeSet('p-proposals', proposals);
+  DATA = buildData(); renderMarkers(); renderIndex();
+  showToast('承認しました。');
+  updateReviewCountBadge();
+  openReviewDashboard();
+}
+async function rejectProposal(propId){
+  const p = proposals.find(x=>x.id===propId);
+  if(!p) return;
+  p.status = 'rejected';
+  await safeSet('p-proposals', proposals);
+  showToast('却下しました。');
+  updateReviewCountBadge();
+  openReviewDashboard();
+}
 function openDeleteConfirmModal(targetId, entityName){
   modalBody.innerHTML = `
     <h3 style="color:var(--burgundy);">項目を削除しますか？</h3>

@@ -1721,7 +1721,10 @@ function showEntity(id, opts={}){
     btn.addEventListener('click', (ev)=>{ ev.stopPropagation(); goToMap(btn.dataset.goto); });
   });
   document.getElementById('mapJumpBtn')?.addEventListener('click', ()=>goToMap(id));
-  document.getElementById('editBtn').addEventListener('click', ()=>openEditModal(id));
+  document.getElementById('editBtn').addEventListener('click', ()=>{
+    if(!currentUser){ showToast('編集にはログインが必要です。'); return; }
+    openEditModal(id);
+  });
   document.getElementById('descToggleBtn')?.addEventListener('click', (ev)=>{
     const p = document.getElementById('entityDescP');
     p.classList.toggle('collapsed');
@@ -1744,7 +1747,10 @@ function showEntity(id, opts={}){
     showEntity(id, {fromTrail:true});
     renderIndex();
   });
-  document.getElementById('addPhotoBtn')?.addEventListener('click', ()=>openPhotoModal(id));
+  document.getElementById('addPhotoBtn')?.addEventListener('click', ()=>{
+    if(!currentUser){ showToast('写真の追加にはログインが必要です。'); return; }
+    openPhotoModal(id);
+  });
   panelContent.querySelectorAll('[data-del-photo]').forEach(btn=>{
     btn.addEventListener('click', ()=>deletePhoto(btn.dataset.photoEntity, btn.dataset.delPhoto));
   });
@@ -1939,7 +1945,10 @@ function openEntityModal(prefill){
     }
   });
 }
-document.getElementById('addEntityBtn').addEventListener('click', ()=>openEntityModal());
+document.getElementById('addEntityBtn').addEventListener('click', ()=>{
+  if(!currentUser){ showToast('新しい項目の追加にはログインが必要です。'); return; }
+  openEntityModal();
+});
 
 function openEditModal(targetId){
   const e = DATA[targetId];

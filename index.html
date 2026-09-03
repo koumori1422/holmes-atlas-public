@@ -331,9 +331,15 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 // ---------- 会員ログイン ----------
 let currentUser = null;
 // ---------- 審査担当者 ----------
-const REVIEWER_EMAILS = ['kou.m1422@gmail.com'];
+let reviewerEmails = [];
+async function loadReviewers(){
+  try{
+    const { data, error } = await supabaseClient.from('reviewers').select('email');
+    if(!error && data) reviewerEmails = data.map(r=>r.email);
+  }catch(e){ console.error('reviewers load failed', e); }
+}
 function isReviewer(){
-  return !!(currentUser && REVIEWER_EMAILS.includes(currentUser.email));
+  return !!(currentUser && reviewerEmails.includes(currentUser.email));
 }
 function renderAuthArea(){
   const el = document.getElementById('authArea');
@@ -2590,6 +2596,7 @@ document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.action-btns')
   }
   const { data: { session } } = await supabaseClient.auth.getSession();
   currentUser = session?.user || null;
+  await loadReviewers();
   renderAuthArea();
   await loadAll();
   DATA = buildData();

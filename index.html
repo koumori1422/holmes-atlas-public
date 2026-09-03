@@ -1584,7 +1584,11 @@ function renderIndex(){
   html += `<div class="site-license">本サイトの説明文は <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a> で公開しています（出典を明記すれば自由にご利用いただけます）。画像は個別に出典・ライセンスを表示しています。</div>`;
   indexEl.innerHTML = html;
   indexEl.querySelectorAll('.index-item[data-id]').forEach(btn=>btn.addEventListener('click', ()=>showEntity(btn.dataset.id)));
-  document.getElementById('aliasAddStandaloneBtn')?.addEventListener('click', (ev)=>{ ev.stopPropagation(); openAliasModal(); });
+  document.getElementById('aliasAddStandaloneBtn')?.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    if(!currentUser){ showToast('辞書の登録にはログインが必要です。'); return; }
+    openAliasModal();
+  });
   indexEl.querySelectorAll('[data-del-alias]').forEach(btn=>{
     btn.addEventListener('click', async (ev)=>{
       ev.stopPropagation();
@@ -1733,6 +1737,7 @@ function showEntity(id, opts={}){
     });
   });
   document.getElementById('favToggleBtn')?.addEventListener('click', async ()=>{
+    if(!currentUser){ showToast('お気に入り登録にはログインが必要です。'); return; }
     personalNotes[id] = personalNotes[id] || {};
     personalNotes[id].favorite = !personalNotes[id].favorite;
     await safeSet('p-notes', personalNotes);
@@ -1808,12 +1813,13 @@ function wireNoteSection(id){
     });
   });
   document.getElementById('noteSaveBtn').addEventListener('click', async ()=>{
-    personalNotes[id] = {
+    if(!currentUser){ showToast('メモの保存にはログインが必要です。'); return; }
+    personalNotes[id] = Object.assign(personalNotes[id]||{}, {
       rating: currentRating,
       visitedDate: document.getElementById('noteDate').value,
       ownedEdition: document.getElementById('noteEdition').value.trim(),
       notes: document.getElementById('noteText').value.trim()
-    };
+    });
     await safeSet('p-notes', personalNotes);
     showToast('メモを保存しました。');
   });
@@ -2159,8 +2165,8 @@ function openReviewDashboard(){
   });
 }
 function renderProposalCard(p){
-  const kindLabel = p.kind==='new' ? '新規追加' : '編集';
-  const targetName = p.kind==='edit' ? (DATA[p.targetId]?.name || p.targetId) : p.draft.name;
+  const kindLabel = p.kind==='new' ? '新規追加' : (p.kind==='photo' ? '写真の追加' : '編集');
+  const targetName = p.kind==='new' ? p.draft.name : (DATA[p.targetId]?.name || p.targetId);
   const dateStr = new Date(p.createdAt).toLocaleString('ja-JP');
   let detailHtml = '';
   if(p.kind==='new'){
@@ -2168,6 +2174,13 @@ function renderProposalCard(p){
       <div><strong>種別：</strong>${TYPE_LABEL[p.targetType]||p.targetType}</div>
       <div><strong>名前：</strong>${escapeHtml(p.draft.name)}</div>
       <div><strong>説明：</strong>${escapeHtml(p.draft.desc)}</div>
+    </div>`;
+  } else if(p.kind==='photo'){
+    detailHtml = `<div class="proposal-detail">
+      <img src="${escapeAttr(p.draft.url)}" alt="" style="max-width:180px;border-radius:3px;display:block;margin-bottom:6px;">
+      ${p.draft.year ? `<div><strong>年代：</strong>${escapeHtml(p.draft.year)}</div>` : ''}
+      ${p.draft.credit ? `<div><strong>作者・提供元：</strong>${escapeHtml(p.draft.credit)}</div>` : ''}
+      ${p.draft.license ? `<div><strong>ライセンス：</strong>${escapeHtml(p.draft.license)}</div>` : ''}
     </div>`;
   } else {
     detailHtml = `<div class="proposal-detail">
@@ -2198,6 +2211,11 @@ async function approveProposal(propId){
       extra.add(newId);
       overrides[relId].extraRelated = Array.from(extra);
     });
+    await safeSet('p-overrides', overrides);
+  } else if(p.kind==='photo'){
+    overrides[p.targetId] = overrides[p.targetId] || {};
+    overrides[p.targetId].extraPhotos = overrides[p.targetId].extraPhotos || [];
+    overrides[p.targetId].extraPhotos.push(p.draft);
     await safeSet('p-overrides', overrides);
   } else {
     overrides[p.targetId] = Object.assign(overrides[p.targetId] || {}, p.draft);
@@ -2301,6 +2319,7 @@ function openPhotoModal(entityId){
   wireImageUpload('ph-image-file','ph-image-preview', d=>uploadedImageData=d);
   document.getElementById('ph-cancel').addEventListener('click', closeModal);
   document.getElementById('ph-submit').addEventListener('click', async ()=>{
+    if(!currentUser){ showToast('写真の追加にはログインが必要です。'); return; }
     const url = uploadedImageData || document.getElementById('ph-url').value.trim();
     if(!url){ showToast('画像をアップロードするかURLを入力してください。'); return; }
     const photo = {
@@ -2311,13 +2330,24 @@ function openPhotoModal(entityId){
       license: document.getElementById('ph-license').value.trim(),
       sourceUrl: document.getElementById('ph-source').value.trim()
     };
-    overrides[entityId] = overrides[entityId] || {};
-    overrides[entityId].extraPhotos = overrides[entityId].extraPhotos || [];
-    overrides[entityId].extraPhotos.push(photo);
-    await safeSet('p-overrides', overrides);
-    DATA = buildData();
-    closeModal(); showToast('写真を追加しました。');
-    showEntity(entityId, {fromTrail:true});
+    if(isReviewer()){
+      overrides[entityId] = overrides[entityId] || {};
+      overrides[entityId].extraPhotos = overrides[entityId].extraPhotos || [];
+      overrides[entityId].extraPhotos.push(photo);
+      await safeSet('p-overrides', overrides);
+      DATA = buildData();
+      closeModal(); showToast('写真を追加しました。');
+      showEntity(entityId, {fromTrail:true});
+    } else {
+      proposals.push({
+        id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+        kind: 'photo', targetType: e.type, targetId: entityId, draft: photo,
+        authorId: currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email,
+        status: 'pending', createdAt: Date.now(), reviewNote: ''
+      });
+      await safeSet('p-proposals', proposals);
+      closeModal(); showToast('写真の提案を送信しました。審査担当者の確認後に反映されます。');
+    }
   });
 }
 
@@ -2611,6 +2641,7 @@ function renderSearchResults(localIds, externalResults, query){
   if(aliasBtn){
     aliasBtn.addEventListener('click', async (ev)=>{
       ev.stopPropagation();
+      if(!currentUser){ showToast('辞書の登録にはログインが必要です。'); return; }
       const englishName = document.getElementById('aliasEnglishInput').value.trim();
       if(!englishName){ showToast('英語表記を入力してください。'); return; }
       await saveCustomAlias(query, englishName);

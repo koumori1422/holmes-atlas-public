@@ -192,8 +192,17 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .journal-card .jc-stars{color:var(--brass);font-size:.85rem;margin-bottom:4px;}
 .journal-card .jc-comment{font-size:.88rem;line-height:1.6;margin:0 0 6px;white-space:pre-wrap;}
 .journal-card .jc-meta{font-size:.74rem;color:var(--slate);}
-.journal-card .jc-actions{margin-top:6px;}
+.journal-card .jc-actions{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;}
 .jc-delete-btn{background:none;border:1px solid var(--burgundy);color:var(--burgundy);padding:3px 10px;border-radius:3px;font-size:.72rem;cursor:pointer;}
+.jc-like-btn,.jc-reply-toggle-btn,.jc-report-btn{background:none;border:1px solid var(--line);color:var(--slate);padding:3px 10px;border-radius:3px;font-size:.72rem;cursor:pointer;}
+.jc-like-btn.liked{border-color:var(--burgundy);color:var(--burgundy);}
+.jc-report-btn:hover{border-color:var(--burgundy);color:var(--burgundy);}
+.jc-replies{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);}
+.jc-reply{font-size:.82rem;line-height:1.6;margin-bottom:6px;}
+.jc-reply-form{display:flex;gap:6px;margin-top:6px;}
+.jc-reply-form input{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:3px;font-size:.82rem;}
+.jc-reply-form button{background:var(--brass);border:none;color:#fff;padding:0 12px;border-radius:3px;cursor:pointer;font-size:.8rem;}
+.review-section-label{font-weight:600;color:var(--brass-light);margin:16px 0 4px;font-size:.85rem;}
 .empty-msg{font-size:.88rem;opacity:.6;font-style:italic;}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(28,36,48,.65);display:none;align-items:center;justify-content:center;z-index:2000;padding:20px;}
@@ -958,6 +967,7 @@ let personalNotes = {}; // { entityId: {rating, visitedDate, ownedEdition, notes
 let journal = [];     // [{id, entityId, placeName, coords, rating, comment, image, visitedDate, createdAt}]
 let customAliases = {}; // { 正規化されたカタカナキー: "英語表記" } — サイト上で追加できる地名対応辞書
 let proposals = [];   // [{id, kind:'new'|'edit', targetType, targetId, draft, authorId, authorName, status, createdAt, reviewNote}]
+let reports = [];     // [{id, journalId, reason, reporterId, reporterName, status, createdAt}]
 
 async function safeGet(key){
   try{
@@ -974,8 +984,8 @@ async function safeSet(key, value){
   }catch(e){ console.error(e); showToast('保存に失敗しました。'); return false; }
 }
 async function loadAll(){
-  const [ov, add, notes, jour, aliases, props] = await Promise.all([
-    safeGet('p-overrides'), safeGet('p-additions'), safeGet('p-notes'), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals')
+  const [ov, add, notes, jour, aliases, props, reps] = await Promise.all([
+    safeGet('p-overrides'), safeGet('p-additions'), safeGet('p-notes'), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals'), safeGet('p-reports')
   ]);
   overrides = ov || {};
   additions = add || {};
@@ -983,6 +993,7 @@ async function loadAll(){
   journal = jour || [];
   customAliases = aliases || {};
   proposals = props || [];
+  reports = reps || [];
 }
 
 function buildData(){
@@ -1734,7 +1745,10 @@ function showEntity(id, opts={}){
   });
   wireNoteSection(id);
   const addJBtn = document.getElementById('addEntityJournalBtn');
-  if(addJBtn) addJBtn.addEventListener('click', ()=>openJournalModal({entityId:id, name:e.name, lat: e.coords?e.coords[0]:null, lng: e.coords?e.coords[1]:null}));
+  if(addJBtn) addJBtn.addEventListener('click', ()=>{
+    if(!currentUser){ showToast('訪問記録の投稿にはログインが必要です。'); return; }
+    openJournalModal({entityId:id, name:e.name, lat: e.coords?e.coords[0]:null, lng: e.coords?e.coords[1]:null});
+  });
   panel.classList.add('open');
 }
 document.getElementById('panelClose').addEventListener('click', ()=>{
@@ -2060,23 +2074,85 @@ function openExportModal(){
 }
 document.getElementById('exportBtn').addEventListener('click', openExportModal);
 
+async function openReportModal(journalId){
+  if(!currentUser){ showToast('通報にはログインが必要です。'); return; }
+  modalBody.innerHTML = `
+    <h3>この投稿を通報</h3>
+    <div class="modal-sub">審査担当者が内容を確認します。</div>
+    <div class="field"><label>理由</label><textarea id="report-reason" placeholder="不適切な内容の理由を書いてください"></textarea></div>
+    <div class="modal-actions"><button class="modal-cancel" id="report-cancel">キャンセル</button><button class="modal-submit" id="report-submit">通報する</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('report-cancel').addEventListener('click', closeModal);
+  document.getElementById('report-submit').addEventListener('click', async ()=>{
+    const reason = document.getElementById('report-reason').value.trim();
+    if(!reason){ showToast('理由を入力してください。'); return; }
+    reports.push({
+      id: 'rep-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+      journalId, reason,
+      reporterId: currentUser.id, reporterName: currentUser.user_metadata?.display_name || currentUser.email,
+      status: 'pending', createdAt: Date.now()
+    });
+    await safeSet('p-reports', reports);
+    closeModal(); showToast('通報しました。ご協力ありがとうございます。');
+  });
+}
 function updateReviewCountBadge(){
   const badge = document.getElementById('reviewCountBadge');
   if(!badge) return;
-  const count = proposals.filter(p=>p.status==='pending').length;
+  const count = proposals.filter(p=>p.status==='pending').length + reports.filter(r=>r.status==='pending').length;
   badge.textContent = count > 0 ? ' '+count : '';
+}
+function renderReportCard(r){
+  const j = journal.find(x=>x.id===r.journalId);
+  const dateStr = new Date(r.createdAt).toLocaleString('ja-JP');
+  return `<div class="proposal-card">
+    <div class="proposal-head"><span class="proposal-kind" style="background:var(--burgundy);">通報</span> ${j ? escapeHtml(j.placeName) : '(既に削除された投稿)'}</div>
+    <div class="proposal-meta">通報者: ${escapeHtml(r.reporterName)} ・ ${dateStr}</div>
+    <div class="proposal-detail">
+      <div><strong>理由：</strong>${escapeHtml(r.reason)}</div>
+      ${j ? `<div><strong>投稿内容：</strong>${escapeHtml(j.comment)}（投稿者：${escapeHtml(j.authorName||'不明')}）</div>` : ''}
+    </div>
+    <div class="proposal-actions">
+      ${j ? `<button class="danger-delete-btn" id="report-delete-${r.id}">投稿を削除する</button>` : ''}
+      <button class="modal-cancel" id="report-dismiss-${r.id}">問題なし（却下）</button>
+    </div>
+  </div>`;
+}
+async function resolveReport(reportId, shouldDelete){
+  const r = reports.find(x=>x.id===reportId);
+  if(!r) return;
+  if(shouldDelete){
+    journal = journal.filter(j=>j.id!==r.journalId);
+    await safeSet('p-journal', journal);
+    renderJournalMarkers();
+  }
+  r.status = 'resolved';
+  await safeSet('p-reports', reports);
+  showToast(shouldDelete ? '投稿を削除しました。' : '却下しました。');
+  updateReviewCountBadge();
+  openReviewDashboard();
 }
 function openReviewDashboard(){
   const pending = proposals.filter(p=>p.status==='pending').sort((a,b)=>a.createdAt-b.createdAt);
+  const pendingReports = reports.filter(r=>r.status==='pending').sort((a,b)=>a.createdAt-b.createdAt);
   modalBody.innerHTML = `
     <h3>審査ダッシュボード</h3>
-    <div class="modal-sub">${pending.length}件の提案が承認待ちです。</div>
+    <div class="modal-sub">${pending.length}件の提案、${pendingReports.length}件の通報があります。</div>
+    <div class="review-section-label">提案</div>
     <div class="review-list">
       ${pending.length===0 ? '<div class="alias-list-empty">今のところ提案はありません。</div>' : pending.map(p=>renderProposalCard(p)).join('')}
+    </div>
+    <div class="review-section-label">通報</div>
+    <div class="review-list">
+      ${pendingReports.length===0 ? '<div class="alias-list-empty">今のところ通報はありません。</div>' : pendingReports.map(r=>renderReportCard(r)).join('')}
     </div>
     <div class="modal-actions"><button class="modal-cancel" id="review-close">閉じる</button></div>`;
   overlay.classList.add('open');
   document.getElementById('review-close').addEventListener('click', closeModal);
+  pendingReports.forEach(r=>{
+    document.getElementById('report-delete-'+r.id)?.addEventListener('click', ()=>resolveReport(r.id, true));
+    document.getElementById('report-dismiss-'+r.id)?.addEventListener('click', ()=>resolveReport(r.id, false));
+  });
   pending.forEach(p=>{
     document.getElementById('approve-'+p.id)?.addEventListener('click', ()=>approveProposal(p.id));
     document.getElementById('reject-'+p.id)?.addEventListener('click', ()=>rejectProposal(p.id));
@@ -2265,13 +2341,26 @@ function renderEntityJournalSection(entityId){
 }
 function renderJournalCard(j){
   const stars = j.rating ? '★'.repeat(j.rating) + '☆'.repeat(5-j.rating) : '';
+  const liked = currentUser && (j.likedBy||[]).includes(currentUser.id);
+  const likeCount = (j.likedBy||[]).length;
+  const canDelete = currentUser && (currentUser.id === j.authorId || isReviewer());
+  const replies = j.replies || [];
   return `
-    <div class="journal-card">
+    <div class="journal-card" data-journal-id="${j.id}">
       ${j.image ? `<img src="${escapeAttr(j.image)}" alt="">` : ''}
       ${stars ? `<div class="jc-stars">${stars}</div>` : ''}
       <p class="jc-comment">${escapeHtml(j.comment)}</p>
-      <div class="jc-meta">${j.visitedDate?('訪問日: '+escapeHtml(j.visitedDate)+' ／ '):''}記録日: ${fmtDate(j.createdAt)}</div>
-      <div class="jc-actions"><button class="jc-delete-btn" data-del-journal="${j.id}">削除</button></div>
+      <div class="jc-meta">${j.authorName ? escapeHtml(j.authorName)+' ・ ' : ''}${j.visitedDate?('訪問日: '+escapeHtml(j.visitedDate)+' ・ '):''}${fmtDate(j.createdAt)}</div>
+      <div class="jc-actions">
+        <button class="jc-like-btn ${liked?'liked':''}" data-like-journal="${j.id}">${liked?'♥':'♡'} ${likeCount>0?likeCount:''}</button>
+        <button class="jc-reply-toggle-btn" data-reply-toggle="${j.id}">返信${replies.length>0?'（'+replies.length+'）':''}</button>
+        <button class="jc-report-btn" data-report-journal="${j.id}">通報</button>
+        ${canDelete ? `<button class="jc-delete-btn" data-del-journal="${j.id}">削除</button>` : ''}
+      </div>
+      <div class="jc-replies" id="replies-${j.id}" style="display:none;">
+        ${replies.map(r=>`<div class="jc-reply"><strong>${escapeHtml(r.authorName)}</strong>：${escapeHtml(r.comment)}</div>`).join('')}
+        ${currentUser ? `<div class="jc-reply-form"><input type="text" id="reply-input-${j.id}" placeholder="返信を書く"><button data-reply-submit="${j.id}">送信</button></div>` : ''}
+      </div>
     </div>`;
 }
 
@@ -2332,6 +2421,7 @@ function openJournalModal(prefill){
   }
   document.getElementById('j-cancel').addEventListener('click', closeModal);
   document.getElementById('j-submit').addEventListener('click', async ()=>{
+    if(!currentUser){ showToast('訪問記録の投稿にはログインが必要です。'); return; }
     const name = document.getElementById('j-name').value.trim();
     const comment = document.getElementById('j-comment').value.trim();
     if(!name || !comment){ showToast('場所の名前とコメントは必須です。'); return; }
@@ -2343,7 +2433,10 @@ function openJournalModal(prefill){
       visitedDate: document.getElementById('j-date').value,
       comment,
       image: uploadedImageData || document.getElementById('j-image').value.trim() || null,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      authorId: currentUser.id,
+      authorName: currentUser.user_metadata?.display_name || currentUser.email,
+      likedBy: [], replies: []
     };
     journal.push(record);
     await safeSet('p-journal', journal);
@@ -2353,20 +2446,66 @@ function openJournalModal(prefill){
     else if(coords) map.flyTo(coords, zoomForCoords(coords,null), {duration:0.7});
   });
 }
-document.getElementById('addJournalBtn').addEventListener('click', ()=>openJournalModal());
+document.getElementById('addJournalBtn').addEventListener('click', ()=>{
+  if(!currentUser){ showToast('訪問記録の投稿にはログインが必要です。'); return; }
+  openJournalModal();
+});
 
-async function deleteJournal(id){
-  if(!confirm('この記録を削除します。よろしいですか？')) return;
-  journal = journal.filter(j=>j.id!==id);
-  await safeSet('p-journal', journal);
+function refreshJournalViews(){
   renderJournalMarkers();
   if(panel.classList.contains('open') && trail.length) showEntity(trail[trail.length-1], {fromTrail:true});
-  if(document.getElementById('timeline').classList.contains('open')) renderTimeline();
-  showToast('削除しました。');
+  if(timelineEl.classList.contains('open')) renderTimeline();
 }
-document.addEventListener('click', (ev)=>{
-  const btn = ev.target.closest('[data-del-journal]');
-  if(btn) deleteJournal(btn.dataset.delJournal);
+async function deleteJournal(id){
+  const j = journal.find(x=>x.id===id);
+  if(!j) return;
+  if(!currentUser || (currentUser.id !== j.authorId && !isReviewer())){ showToast('この投稿を削除する権限がありません。'); return; }
+  if(!confirm('この記録を削除します。よろしいですか？')) return;
+  journal = journal.filter(x=>x.id!==id);
+  await safeSet('p-journal', journal);
+  showToast('削除しました。');
+  refreshJournalViews();
+}
+async function toggleJournalLike(id){
+  if(!currentUser){ showToast('いいねにはログインが必要です。'); return; }
+  const j = journal.find(x=>x.id===id);
+  if(!j) return;
+  j.likedBy = j.likedBy || [];
+  const idx = j.likedBy.indexOf(currentUser.id);
+  if(idx>=0) j.likedBy.splice(idx,1); else j.likedBy.push(currentUser.id);
+  await safeSet('p-journal', journal);
+  refreshJournalViews();
+}
+async function addJournalReply(id, comment){
+  if(!currentUser){ showToast('返信にはログインが必要です。'); return; }
+  const j = journal.find(x=>x.id===id);
+  if(!j) return;
+  j.replies = j.replies || [];
+  j.replies.push({id:'r-'+Date.now().toString(36), authorId:currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email, comment, createdAt: Date.now()});
+  await safeSet('p-journal', journal);
+  showToast('返信しました。');
+  refreshJournalViews();
+}
+document.addEventListener('click', async (ev)=>{
+  const delBtn = ev.target.closest('[data-del-journal]');
+  if(delBtn){ deleteJournal(delBtn.dataset.delJournal); return; }
+  const likeBtn = ev.target.closest('[data-like-journal]');
+  if(likeBtn){ await toggleJournalLike(likeBtn.dataset.likeJournal); return; }
+  const replyToggle = ev.target.closest('[data-reply-toggle]');
+  if(replyToggle){
+    const box = document.getElementById('replies-'+replyToggle.dataset.replyToggle);
+    if(box) box.style.display = box.style.display==='none' ? 'block' : 'none';
+    return;
+  }
+  const replySubmit = ev.target.closest('[data-reply-submit]');
+  if(replySubmit){
+    const rid = replySubmit.dataset.replySubmit;
+    const input = document.getElementById('reply-input-'+rid);
+    if(input && input.value.trim()) await addJournalReply(rid, input.value.trim());
+    return;
+  }
+  const reportBtn = ev.target.closest('[data-report-journal]');
+  if(reportBtn){ openReportModal(reportBtn.dataset.reportJournal); return; }
 });
 
 function openJournalDetail(id){

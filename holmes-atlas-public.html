@@ -1,0 +1,2478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ホームズ・アトラス／JSHC版（開発中）</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Crimson+Pro:wght@400;500;600&display=swap">
+<style>
+
+:root{
+  --ink:#1c2430; --ink-2:#232d3c;
+  --parchment:#ece3cc; --parchment-2:#e0d4b3;
+  --brass:#ab8347; --brass-light:#c9a562;
+  --burgundy:#7a2634; --teal:#2f5d5a; --slate:#55606e; --pastiche:#7c5980;
+  --charcoal:#2b2620; --fog:#cdd5db; --line:rgba(171,131,71,0.35);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:var(--ink);font-family:'Crimson Pro',serif;color:var(--fog);}
+button,input,select,textarea{font-family:'Crimson Pro',serif;}
+
+.app{display:grid;grid-template-columns:260px 1fr;grid-template-rows:56px 1fr;height:100vh;}
+.header{grid-column:1/3;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--ink-2);border-bottom:1px solid var(--line);}
+.seal{width:24px;height:24px;flex:none;}
+.header h1{font-family:'Playfair Display',serif;font-weight:600;font-style:italic;font-size:1.05rem;color:var(--parchment);margin:0;}
+.header .sub{font-size:.76rem;color:var(--brass-light);opacity:.85;}
+.header-spacer{flex:1;}
+.hbtn{background:none;border:1px solid var(--line);color:var(--fog);font-size:.82rem;padding:6px 12px;border-radius:3px;cursor:pointer;white-space:nowrap;}
+.auth-area{display:inline-flex;align-items:center;gap:8px;margin-left:6px;}
+.auth-name{color:var(--brass-light);font-size:.82rem;white-space:nowrap;}
+.link-btn{background:none;border:none;color:var(--brass);text-decoration:underline;cursor:pointer;padding:0;font-size:inherit;}
+.hbtn:hover{border-color:var(--brass);color:#fff;}
+.hbtn.primary{background:var(--brass);border-color:var(--brass);color:#fff;}
+.hbtn.primary:hover{background:var(--brass-light);}
+.index-toggle{display:none;}
+.action-btns{display:flex;gap:10px;flex-wrap:wrap;}
+.menu-toggle{display:none;}
+
+.index{background:var(--ink-2);border-right:1px solid var(--line);overflow-y:auto;padding:14px 0 20px;}
+.index-group-header{display:flex;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:none;font-weight:600;font-size:.78rem;color:var(--brass-light);padding:9px 16px;margin:0;border-bottom:1px solid var(--line);border-top:1px solid var(--line);cursor:pointer;}
+.index-group-header:hover{background:rgba(171,131,71,.1);}
+.igh-arrow{font-size:.7rem;width:10px;}
+.igh-count{margin-left:auto;font-size:.7rem;opacity:.6;font-weight:400;}
+.index-group-items{padding-bottom:4px;}
+.index-item{display:block;width:100%;text-align:left;background:none;border:none;color:var(--fog);font-size:.9rem;padding:7px 16px;cursor:pointer;}
+.index-link-item{text-decoration:none;box-sizing:border-box;}
+.index-link-desc{display:block;font-size:.72rem;opacity:.6;margin-top:2px;}
+.alias-list-item{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 16px;font-size:.82rem;color:var(--fog);}
+.alias-list-empty{padding:8px 16px;font-size:.78rem;opacity:.55;font-style:italic;}
+.site-license{padding:16px;font-size:.68rem;color:var(--fog);opacity:.6;line-height:1.7;border-top:1px solid var(--line);margin-top:10px;}
+.site-license a{color:var(--brass-light);}
+.fav-subheader{padding:8px 16px 4px;font-size:.7rem;color:var(--brass-light);font-weight:600;}
+.alias-add-standalone-btn{display:block;width:calc(100% - 24px);margin:4px 12px 8px;font-size:.78rem;background:var(--teal);border:none;color:#fff;padding:6px 0;border-radius:3px;cursor:pointer;}
+.alias-delete-btn{background:none;border:1px solid var(--line);color:var(--fog);width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:.78rem;flex:none;line-height:1;padding:0;}
+.alias-delete-btn:hover{border-color:var(--burgundy);color:var(--burgundy);}
+.index-item:hover{background:rgba(171,131,71,.12);}
+.index-item.active{background:rgba(171,131,71,.22);color:#fff;}
+
+.stage{position:relative;overflow:hidden;height:100%;}
+#map{position:absolute;inset:0;width:100%;height:100%;background:#dfe6ea;filter:sepia(.18) saturate(.85) brightness(.97) contrast(1.02);}
+.map-status{position:absolute;top:12px;left:12px;z-index:500;background:var(--ink-2);color:var(--fog);border:1px solid var(--line);padding:6px 12px;border-radius:3px;font-size:.8rem;display:none;}
+.map-status.show{display:block;}
+.map-search{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:600;width:min(380px,82%);}
+.stage:has(.panel.open) .map-search,
+.stage:has(.panel.open) .locate-map-btn,
+.stage:has(.panel.open) .historic-toggle-btn{display:none;}
+.map-search-row{display:flex;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);border-radius:3px;}
+.map-search-row input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:3px 0 0 3px;font-size:.9rem;background:#fff;color:var(--charcoal);}
+.map-search-row button{background:var(--brass);border:none;color:#fff;padding:0 16px;border-radius:0;cursor:pointer;font-size:.85rem;}
+.map-search-row button:last-child{border-radius:0 3px 3px 0;}
+.map-search-clear-btn{background:#fff!important;color:var(--slate)!important;border-left:1px solid var(--line)!important;width:32px;padding:0!important;font-size:1.1rem!important;}
+.map-search-clear-btn:hover{color:var(--burgundy)!important;}
+.map-search-results{margin-top:6px;background:#fff;border:1px solid var(--line);border-radius:4px;overflow:hidden;display:none;max-height:300px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.2);}
+.map-search-results.show{display:block;}
+.map-search-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:#fff;border:none;border-bottom:1px solid var(--line);padding:9px 12px;font-size:.86rem;color:var(--charcoal);cursor:pointer;}
+.map-search-item:hover{background:#f7ecd0;}
+.map-search-item .msi-sub{font-size:.72rem;opacity:.6;margin-left:auto;padding-left:8px;}
+.map-search-section{padding:6px 12px;font-size:.7rem;color:var(--slate);background:var(--parchment-2);}
+.alias-register-row{display:flex;gap:6px;padding:8px 12px;background:#fff;}
+.alias-register-row input{flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:3px;font-size:.8rem;}
+.alias-register-row button{background:var(--brass);border:none;color:#fff;padding:0 12px;border-radius:3px;cursor:pointer;font-size:.8rem;white-space:nowrap;}
+.search-popup-btn{background:var(--brass);border:none;color:#fff;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:.8rem;margin-top:4px;}
+.locate-map-btn{position:absolute;bottom:16px;right:16px;z-index:500;width:42px;height:42px;border-radius:50%;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);}
+.locate-map-btn:hover{border-color:var(--brass);}
+.locate-map-btn svg{width:20px;height:20px;}
+.historic-toggle-btn{position:absolute;bottom:16px;right:66px;z-index:500;height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;}
+.historic-toggle-btn:hover{border-color:var(--brass);}
+.historic-toggle-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);}
+.nearby-panel{position:absolute;bottom:66px;right:16px;z-index:500;width:min(300px,80%);background:var(--parchment);border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-height:320px;overflow-y:auto;display:none;}
+.nearby-panel.show{display:block;}
+.nearby-panel-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.nearby-panel-close{background:none;border:none;cursor:pointer;font-size:1rem;color:var(--charcoal);opacity:.6;}
+.nearby-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;background:#fff;border:none;border-bottom:1px solid var(--line);padding:9px 14px;font-size:.85rem;color:var(--charcoal);cursor:pointer;}
+.nearby-item:hover{background:#f7ecd0;}
+.nearby-item .ni-dist{font-size:.72rem;opacity:.6;white-space:nowrap;margin-left:8px;}
+.leaflet-holmes-icon{background:var(--brass);border:2px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5);}
+.holmes-cluster-icon{background:transparent;}
+.cluster-icon-inner{width:34px;height:34px;border-radius:50%;background:var(--brass);border:2px solid var(--parchment);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Crimson Pro',serif;font-weight:700;font-size:.92rem;box-shadow:0 1px 4px rgba(0,0,0,.5);}
+.leaflet-holmes-icon svg{width:14px;height:14px;}
+.leaflet-holmes-icon-peripheral{background:var(--slate);opacity:.8;border:1.5px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.4);}
+.leaflet-holmes-icon-peripheral svg{width:9px;height:9px;}
+.leaflet-holmes-special-icon{background:var(--burgundy);border:3px solid var(--brass-light);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(171,131,71,.35),0 2px 8px rgba(0,0,0,.6);}
+.leaflet-holmes-special-icon svg{width:19px;height:19px;}
+.place-label-special{background:var(--burgundy)!important;color:#fff!important;border:2px solid var(--brass-light)!important;font-family:'Crimson Pro',serif;font-weight:700!important;font-size:.82rem!important;padding:4px 10px!important;border-radius:2px;box-shadow:0 2px 8px rgba(0,0,0,.5)!important;pointer-events:none!important;}
+.place-label-special::before{border-top-color:var(--burgundy)!important;}
+.leaflet-journal-icon{background:var(--teal);border:2px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5);}
+.leaflet-journal-icon svg{width:13px;height:13px;}
+.place-label{background:rgba(28,36,48,.88)!important;color:var(--parchment)!important;border:1px solid var(--brass)!important;font-family:'Crimson Pro',serif;font-size:.72rem!important;padding:2px 7px!important;border-radius:2px;box-shadow:none!important;pointer-events:none!important;}
+.place-label::before{border-top-color:rgba(28,36,48,.88)!important;}
+.hide-place-labels .place-label{display:none;}
+.hide-place-labels .place-label.force-show{display:block!important;}
+.leaflet-tooltip.force-show{z-index:650!important;}
+.leaflet-tooltip.spiderfied-hide{display:none!important;}
+.map-area-label{background:none!important;border:none!important;box-shadow:none!important;padding:0!important;color:#3a2e1e!important;font-family:'Playfair Display',serif;font-weight:600;font-size:.82rem;letter-spacing:.03em;text-shadow:-1px -1px 0 #ece3cc,1px -1px 0 #ece3cc,-1px 1px 0 #ece3cc,1px 1px 0 #ece3cc,0 0 6px #ece3cc;pointer-events:none!important;}
+.map-area-label::before{display:none!important;}
+
+.panel{position:absolute;top:0;right:0;bottom:0;width:min(640px,92%);background:var(--parchment);color:var(--charcoal);transform:translateX(100%);transition:transform .28s ease;overflow-y:auto;border-left:3px solid var(--brass);box-shadow:-6px 0 18px rgba(0,0,0,.35);}
+.panel.open{transform:translateX(0);}
+.trail{display:flex;flex-wrap:wrap;gap:4px;padding:14px 20px 0;font-size:.78rem;}
+.trail button{background:none;border:none;color:var(--slate);cursor:pointer;padding:2px 0;font-size:.78rem;text-decoration:underline;text-decoration-color:var(--line);}
+.trail span.sep{color:var(--brass);padding:0 2px;}
+.panel-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:1.3rem;color:var(--charcoal);cursor:pointer;opacity:.55;}
+.panel-close:hover{opacity:1;}
+.panel-body{padding:6px 24px 30px;}
+.type-badge{display:inline-block;font-size:.7rem;padding:2px 9px;border-radius:2px;color:#fff;margin-bottom:10px;}
+.fav-toggle-btn{float:right;background:none;border:1px solid var(--line);color:var(--slate);font-size:.8rem;padding:3px 10px;border-radius:12px;cursor:pointer;margin-bottom:10px;}
+.fav-toggle-btn.active{background:var(--brass);border-color:var(--brass);color:#fff;}
+.fav-toggle-btn:hover{border-color:var(--brass);}
+.badge-place{background:var(--brass);} .badge-person{background:var(--burgundy);}
+.badge-work{background:var(--teal);} .badge-term{background:var(--slate);}
+.badge-pastiche{background:var(--pastiche);}
+.badge-peripheral{background:none;border:1px solid var(--slate);color:var(--slate)!important;}
+.panel-body h3{font-family:'Playfair Display',serif;font-weight:600;font-size:1.4rem;margin:2px 0 12px;color:var(--ink);}
+.panel-body img.entity-img{width:100%;border-radius:3px;margin-bottom:14px;border:1px solid var(--line);}
+.photo-row{display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;}
+.photo-row .photo-block{flex:0 0 150px;position:relative;}
+.photo-block{flex:1;min-width:140px;}
+.photo-del-btn{position:absolute;top:4px;right:4px;z-index:5;width:20px;height:20px;border-radius:50%;background:rgba(28,36,48,.75);color:#fff;border:none;cursor:pointer;font-size:.85rem;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;}
+.photo-del-btn:hover{background:var(--burgundy);}
+.add-photo-btn{flex:0 0 80px;height:150px;border:1px dashed var(--line);border-radius:3px;background:none;color:var(--slate);cursor:pointer;font-size:.72rem;line-height:1.4;}
+.add-photo-btn:hover{border-color:var(--brass);color:var(--brass);}
+.photo-block img{width:100%;height:150px;object-fit:cover;border-radius:3px;border:1px solid var(--line);display:block;}
+.photo-block .photo-label{font-size:.72rem;font-weight:600;color:var(--slate);margin-bottom:3px;}
+.photo-credit{font-size:.68rem;color:var(--slate);line-height:1.4;margin-top:3px;}
+.photo-credit a{color:var(--slate);}
+.panel-body p{font-size:.96rem;line-height:1.75;margin:0 0 18px;}
+.desc-toggle-btn{background:none;border:none;color:var(--brass);font-size:.8rem;cursor:pointer;padding:0;text-decoration:underline;text-decoration-color:var(--line);margin:-14px 0 18px;display:block;}
+.entity-desc.collapsed{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;}
+.desc-link{background:none;border:none;padding:0;font:inherit;color:var(--brass);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);}
+.desc-link:hover{color:var(--burgundy);}
+.desc-link-ambiguous{background:none;border:none;padding:0;font:inherit;color:var(--slate);cursor:pointer;text-decoration:underline;text-decoration-style:dashed;text-decoration-color:var(--brass);}
+.desc-link-ambiguous:hover{color:var(--burgundy);}
+.related h4{font-weight:600;font-size:.83rem;color:var(--slate);margin:0 0 8px;border-top:1px solid var(--line);padding-top:14px;}
+.chip-row{display:flex;flex-wrap:wrap;gap:7px;}
+.chip-wrap{display:inline-flex;align-items:center;gap:3px;}
+.chip{font-size:.86rem;background:var(--parchment-2);border:1px solid var(--line);color:var(--charcoal);padding:5px 11px;border-radius:3px;cursor:pointer;}
+.chip:hover{border-color:var(--brass);background:#f1e8cc;}
+.chip-map-btn{width:26px;height:26px;flex:none;border-radius:50%;background:var(--brass);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.chip-map-btn svg{width:14px;height:14px;}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+.dot-place{background:var(--brass);} .dot-person{background:var(--burgundy);}
+.dot-work{background:var(--teal);} .dot-term{background:var(--slate);}
+.dot-pastiche{background:var(--pastiche);}
+.edit-btn{font-size:.85rem;background:none;border:1px solid var(--brass);color:var(--brass);padding:6px 13px;border-radius:3px;cursor:pointer;margin-right:8px;}
+.edit-btn:hover{background:var(--brass);color:#fff;}
+.map-jump-main-btn{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;background:none;border:1px solid var(--brass);color:var(--brass);padding:6px 13px;border-radius:3px;cursor:pointer;margin-bottom:14px;margin-right:8px;text-decoration:none;}
+.map-jump-main-btn:hover{background:var(--brass);color:#fff;}
+.map-jump-main-btn svg{width:14px;height:14px;}
+
+.note-section{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;}
+.note-section h4{font-weight:600;font-size:.83rem;color:var(--slate);margin:0 0 10px;}
+.stars{display:flex;gap:4px;margin-bottom:10px;}
+.star-btn{background:none;border:none;font-size:1.3rem;line-height:1;cursor:pointer;color:var(--line);padding:0;}
+.star-btn.filled{color:var(--brass);}
+.note-field{margin-bottom:10px;}
+.note-field label{display:block;font-size:.78rem;color:var(--slate);margin-bottom:3px;}
+.note-field input[type=text],.note-field input[type=date],.note-field textarea{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:3px;font-size:.88rem;background:#fff;}
+.note-field textarea{min-height:70px;resize:vertical;}
+.note-save-btn{background:var(--teal);border:none;color:#fff;padding:7px 16px;border-radius:3px;cursor:pointer;font-size:.85rem;}
+
+.journal-section{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;}
+.journal-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.journal-section-head h4{font-weight:600;font-size:.83rem;color:var(--slate);margin:0;}
+.add-journal-btn{font-size:.78rem;background:var(--teal);border:none;color:#fff;padding:5px 11px;border-radius:3px;cursor:pointer;}
+.journal-card{background:#fff;border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin-bottom:10px;}
+.journal-card img{width:100%;max-height:160px;object-fit:cover;border-radius:3px;margin-bottom:8px;display:block;}
+.journal-card .jc-place{font-weight:600;font-size:.9rem;color:var(--ink);margin-bottom:3px;}
+.journal-card .jc-stars{color:var(--brass);font-size:.85rem;margin-bottom:4px;}
+.journal-card .jc-comment{font-size:.88rem;line-height:1.6;margin:0 0 6px;white-space:pre-wrap;}
+.journal-card .jc-meta{font-size:.74rem;color:var(--slate);}
+.journal-card .jc-actions{margin-top:6px;}
+.jc-delete-btn{background:none;border:1px solid var(--burgundy);color:var(--burgundy);padding:3px 10px;border-radius:3px;font-size:.72rem;cursor:pointer;}
+.empty-msg{font-size:.88rem;opacity:.6;font-style:italic;}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(28,36,48,.65);display:none;align-items:center;justify-content:center;z-index:2000;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--parchment);color:var(--charcoal);border-radius:5px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:22px 24px 26px;border-top:4px solid var(--brass);}
+.modal h3{font-family:'Playfair Display',serif;margin:0 0 4px;font-size:1.25rem;color:var(--ink);}
+.modal .modal-sub{font-size:.82rem;opacity:.7;margin-bottom:16px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:.82rem;font-weight:600;color:var(--slate);margin-bottom:4px;}
+.field input[type=text],.field input[type=date],.field textarea,.field select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:3px;font-size:.9rem;background:#fff;}
+.field textarea{min-height:90px;resize:vertical;}
+.field .hint{font-size:.74rem;opacity:.6;margin-top:3px;}
+.geo-row{display:flex;gap:6px;}
+.geo-row input{flex:1;}
+.geo-search-btn{background:var(--slate);border:none;color:#fff;padding:0 14px;border-radius:3px;cursor:pointer;font-size:.85rem;white-space:nowrap;}
+.geo-results{margin-top:6px;max-height:130px;overflow-y:auto;}
+.geo-result-item{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:3px;padding:6px 9px;margin-bottom:5px;font-size:.82rem;cursor:pointer;}
+.geo-result-item:hover{border-color:var(--brass);background:#f7ecd0;}
+.geo-result-item.selected{border-color:var(--teal);background:#e7f0ef;}
+.latlng-row{display:flex;gap:8px;margin-top:8px;}
+.latlng-row input{width:100%;}
+.checklist{max-height:140px;overflow-y:auto;border:1px solid var(--line);border-radius:3px;padding:8px 10px;background:#fff;}
+.checklist label{display:block;font-size:.85rem;font-weight:400;margin:3px 0;cursor:pointer;}
+.file-input{width:100%;font-size:.85rem;padding:6px 0;}
+.image-preview{margin-top:8px;}
+.image-preview img{max-width:100%;max-height:160px;border-radius:3px;border:1px solid var(--line);display:block;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+.modal-cancel{background:none;border:1px solid var(--line);color:var(--charcoal);padding:7px 16px;border-radius:3px;cursor:pointer;}
+.modal-submit{background:var(--brass);border:none;color:#fff;padding:7px 18px;border-radius:3px;cursor:pointer;}
+.danger-zone{margin-top:22px;padding-top:14px;border-top:1px dashed var(--burgundy);text-align:right;}
+.danger-delete-btn{background:none;border:1px solid var(--burgundy);color:var(--burgundy);padding:6px 16px;border-radius:3px;cursor:pointer;font-size:.82rem;}
+.danger-delete-btn:hover:not(:disabled){background:var(--burgundy);color:#fff;}
+.danger-delete-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+.timeline{position:absolute;inset:0;background:var(--parchment);color:var(--charcoal);overflow-y:auto;display:none;padding:20px 26px 60px;}
+.timeline.open{display:block;}
+.timeline h2{font-family:'Playfair Display',serif;font-size:1.5rem;margin:4px 0 4px;color:var(--ink);}
+.timeline-note{font-size:.85rem;opacity:.7;margin-bottom:18px;}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink-2);color:var(--parchment);padding:10px 20px;border-radius:4px;border:1px solid var(--brass);font-size:.88rem;z-index:3000;opacity:0;pointer-events:none;transition:opacity .25s ease;}
+.lightbox-overlay{position:fixed;inset:0;background:rgba(10,13,18,.92);display:none;align-items:center;justify-content:center;z-index:5000;padding:30px;cursor:zoom-out;}
+.lightbox-overlay.open{display:flex;}
+.lightbox-overlay img{max-width:100%;max-height:100%;object-fit:contain;border-radius:3px;box-shadow:0 8px 30px rgba(0,0,0,.5);}
+.lightbox-close{position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;line-height:1;}
+.photo-block img,.entity-img,.journal-card img{cursor:zoom-in;}
+.toast.show{opacity:1;}
+
+@media (max-width:760px){
+  .app{grid-template-columns:1fr;grid-template-rows:56px 1fr;}
+  .index{position:absolute;top:56px;left:0;bottom:0;width:240px;z-index:1000;transform:translateX(-100%);transition:transform .25s ease;}
+  .index.open{transform:translateX(0);}
+  .index-toggle{display:inline-block;}
+  .panel{width:100%;}
+  .header .sub{display:none;}
+  .menu-toggle{display:inline-block;}
+  .action-btns{display:none;position:absolute;top:56px;right:12px;z-index:1500;background:var(--ink-2);border:1px solid var(--line);border-radius:4px;flex-direction:column;gap:6px;padding:10px;box-shadow:0 6px 16px rgba(0,0,0,.4);min-width:200px;}
+  .action-btns.open{display:flex;}
+  .action-btns .hbtn{width:100%;text-align:left;}
+  .modal{padding:18px 16px 22px;}
+  .timeline{padding:16px 16px 50px;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <svg class="seal" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="#ab8347" stroke-width="2"/><circle cx="20" cy="20" r="6" fill="#ab8347"/></svg>
+    <h1>ホームズ・アトラス</h1>
+    <span class="sub">— JSHC版（開発中）</span>
+    <div class="header-spacer"></div>
+    <button class="hbtn index-toggle" id="indexToggle">索引</button>
+    <div class="action-btns" id="actionBtns">
+      <button class="hbtn primary" id="addEntityBtn">＋ 新しい項目を追加</button>
+      <button class="hbtn" id="addJournalBtn">＋ 訪問記録を追加</button>
+      <button class="hbtn" id="timelineToggle">タイムライン</button>
+      <button class="hbtn" id="exportBtn">データをエクスポート</button>
+      <span class="auth-area" id="authArea"></span>
+    </div>
+    <button class="hbtn menu-toggle" id="menuToggle">☰ メニュー</button>
+  </div>
+
+  <div class="index" id="index"></div>
+
+  <div class="stage">
+    <div id="map"></div>
+    <div class="map-status" id="mapStatus">地図タイルを読み込み中…</div>
+    <div class="map-search" id="mapSearch">
+      <div class="map-search-row">
+        <input type="text" id="mapSearchInput" placeholder="地名やスポット名で検索" autocomplete="off">
+        <button type="button" class="map-search-clear-btn" id="mapSearchClearBtn" title="クリア" style="display:none;">×</button>
+        <button type="button" id="mapSearchBtn">検索</button>
+      </div>
+      <div class="map-search-results" id="mapSearchResults"></div>
+    </div>
+    <button class="locate-map-btn" id="locateMapBtn" title="現在地から探す" aria-label="現在地から近い場所を探す">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    </button>
+    <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図に切り替え">🗺️ 古地図</button>
+    <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示" style="right:150px;">核心のみ表示</button>
+    <div class="nearby-panel" id="nearbyPanel"></div>
+    <div class="panel" id="panel">
+      <button class="panel-close" id="panelClose">×</button>
+      <div id="panelContent"></div>
+    </div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="lightbox-overlay" id="lightboxOverlay">
+  <img id="lightboxImg" src="" alt="">
+  <button class="lightbox-close" id="lightboxClose">×</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ---------- Supabase設定 ----------
+const SUPABASE_URL = 'https://brwuckusjxvwmixxyyow.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_fE_4Utj8xPDhjUBPbw4Dpg_QGLHu74B';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ---------- 会員ログイン ----------
+let currentUser = null;
+function renderAuthArea(){
+  const el = document.getElementById('authArea');
+  if(currentUser){
+    const name = currentUser.user_metadata?.display_name || currentUser.email;
+    el.innerHTML = `<span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="logoutBtn">ログアウト</button>`;
+    document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+      await supabaseClient.auth.signOut();
+    });
+  } else {
+    el.innerHTML = `<button class="hbtn" id="loginBtn">ログイン</button><button class="hbtn" id="signupBtn">会員登録</button>`;
+    document.getElementById('loginBtn').addEventListener('click', ()=>openAuthModal('login'));
+    document.getElementById('signupBtn').addEventListener('click', ()=>openAuthModal('signup'));
+  }
+}
+function openAuthModal(mode){
+  const isSignup = mode==='signup';
+  modalBody.innerHTML = `
+    <h3>${isSignup ? '会員登録' : 'ログイン'}</h3>
+    <div class="modal-sub">${isSignup ? 'JSHC会員の方はどなたでも登録できます。' : 'ログインすると、地名の提案・訪問レポートの投稿ができます。'}</div>
+    ${isSignup ? `<div class="field"><label>お名前（表示名）</label><input type="text" id="auth-name" placeholder="例：ワトスン"></div>` : ''}
+    <div class="field"><label>メールアドレス</label><input type="email" id="auth-email"></div>
+    <div class="field"><label>パスワード</label><input type="password" id="auth-password" placeholder="8文字以上"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="auth-cancel">キャンセル</button>
+      <button class="modal-submit" id="auth-submit">${isSignup ? '登録する' : 'ログイン'}</button>
+    </div>
+    <div class="modal-sub" style="margin-top:14px;">${isSignup ? 'すでに登録済みの方は' : 'まだ登録していない方は'} <button class="link-btn" id="auth-switch">${isSignup ? 'ログイン' : '会員登録'}へ</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('auth-cancel').addEventListener('click', closeModal);
+  document.getElementById('auth-switch').addEventListener('click', ()=>openAuthModal(isSignup ? 'login' : 'signup'));
+  document.getElementById('auth-submit').addEventListener('click', async ()=>{
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    if(!email || !password){ showToast('メールアドレスとパスワードを入力してください。'); return; }
+    if(isSignup){
+      const name = document.getElementById('auth-name').value.trim();
+      if(!name){ showToast('お名前を入力してください。'); return; }
+      const { error } = await supabaseClient.auth.signUp({ email, password, options:{ data:{ display_name: name } } });
+      if(error){ showToast('登録に失敗しました：' + error.message); return; }
+      closeModal();
+      showToast('登録しました。確認メールが届く場合は、案内に従ってください。');
+    } else {
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if(error){ showToast('ログインに失敗しました：' + error.message); return; }
+      closeModal();
+      showToast('ログインしました。');
+    }
+  });
+}
+supabaseClient.auth.onAuthStateChange((event, session)=>{
+  currentUser = session?.user || null;
+  renderAuthArea();
+});
+
+
+// ---------- 古地図レイヤー設定（★MapTilerに登録後、ここに値を入れてください） ----------
+// MapTilerダッシュボード → Tiles → United Kingdom → 使いたいNLS古地図を選択 → そこに表示されるタイルIDを入れる
+const MAPTILER_KEY = 'tg7mg7zNbwjUpISPy2YN';
+const MAPTILER_HISTORIC_TILE_ID = 'uk-osgb10k1888';
+
+// ---------- ベースデータ（公開パイロット版と同じ内容を流用） ----------
+const SEED = {
+  "baker-street": {type:"place", name:"221Bベーカー街", coords:[51.5237,-0.1585], image:null,
+    photoNow:{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Front_view_of_221B_Baker_Street.jpg", credit:"Kaartic", license:"CC BY-SA 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Front_view_of_221B_Baker_Street.jpg"},
+    desc:"[[ホームズ]]と[[ワトスン]]が1881年から共同生活を送った住居。ベーカー街自体は実在するが、221Bという番地は物語のために作られたもの。家主は[[ハドスン夫人]]。",
+    related:["holmes","watson","mrs-hudson","study-in-scarlet"]},
+  "st-barts": {type:"place", name:"セント・バーソロミュー病院", coords:[51.5174,-0.1012], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/St_Bartholomew%27s_Hospital%2C_London%3B_The_Square._Photograph%2C_c_Wellcome_V0028932.jpg", year:"1890年頃", credit:"Wellcome Collection", license:"CC BY 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:St_Bartholomew%27s_Hospital%2C_London%3B_The_Square._Photograph%2C_c_Wellcome_V0028932.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/St_Bartholomew%27s_Hospital%2C_London%3B_Smithfield_Gate._Photogra_Wellcome_V0028931.jpg", year:"1890年頃", credit:"Wellcome Collection", license:"CC BY 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:St_Bartholomew%27s_Hospital%2C_London%3B_Smithfield_Gate._Photogra_Wellcome_V0028931.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/St_Bartholomew%27s_Hospital%2C_London_-_03.jpg", year:"2011年", credit:"Luca Borghi", license:"CC BY-SA 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:St_Bartholomew%27s_Hospital%2C_London_-_03.jpg"}],
+    desc:"ワトスンが軍医として帰国後、旧友スタンフォードの紹介でホームズと初めて顔を合わせた化学実験室があった場所。二人の出会いの地。",
+    related:["holmes","watson","study-in-scarlet"]},
+  "scotland-yard": {type:"place", name:"スコットランド・ヤード", coords:[51.5074,-0.1246], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/New_Scotland_Yard_%2815057601600%29.jpg", year:"1936年頃", credit:"Leonard Bentley", license:"CC BY-SA 2.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:New_Scotland_Yard_%2815057601600%29.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/New-Scotland-Yard-Victorian-building-Big-Ben-1890.jpg", year:"2006年", credit:"Wikid77", license:"CC BY-SA 3.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:New-Scotland-Yard-Victorian-building-Big-Ben-1890.jpg"}],
+    desc:"ロンドン警視庁の通称。レストレード警部をはじめとする捜査官がしばしば行き詰まった事件の相談にホームズを訪ねる。",
+    related:["lestrade","holmes"]},
+  "dartmoor": {type:"place", name:"ダートムーア", coords:[50.5833,-3.9167], image:null,
+    desc:"『バスカヴィル家の犬』の舞台となったデヴォン州の荒野。地方に伝わる魔犬伝説と陰鬱な自然描写が事件の背景をなす。",
+    related:["hound-baskervilles","holmes","watson"]},
+  "reichenbach": {type:"place", name:"ライヘンバッハの滝", coords:[46.7167,8.0333], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Sherlock_Holmes_and_Professor_Moriarty_at_the_Reichenbach_Falls_-_Sidney_Paget.jpg", year:"1893年（挿絵）", credit:"Sidney Paget", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:Sherlock_Holmes_and_Professor_Moriarty_at_the_Reichenbach_Falls_-_Sidney_Paget.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Schattenhalb_Reichenbachfall_7-05-2024_10-56-28.jpg", year:"2024年", credit:"Paul Hermans", license:"CC BY-SA 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Schattenhalb_Reichenbachfall_7-05-2024_10-56-28.jpg"}],
+    desc:"『最後の事件』でホームズとモリアーティ教授が対決した場所とされるスイスの滝。ドイルが一度ホームズを退場させるために選んだ舞台。",
+    related:["final-problem","holmes","moriarty"]},
+  "vienna": {type:"place", name:"ウィーン", coords:[48.2082,16.3738], image:null,
+    desc:"ニコラス・メイヤーによるパスティーシュ『シャーロック・ホームズ 心理分析』の舞台。コカイン依存に陥ったホームズが精神分析医フロイトの元を訪ねる。",
+    related:["seven-percent-solution","holmes","pastiche-term"]},
+  "paris": {type:"place", name:"パリ", coords:[48.8566,2.3522], image:null,
+    desc:"モーリス・ルブランの『アルセーヌ・ルパン』シリーズに「エルロック・ショルメス」としてホームズを思わせる探偵が登場し対決する、著名なパロディ的パスティーシュ。",
+    related:["herlock-sholmes","holmes","pastiche-term"]},
+  "sussex": {type:"place", name:"サセックス", coords:[50.9333,0.0833], image:null,
+    desc:"正典でもホームズが養蜂業を営みながら引退生活を送ったとされる地（『最後の挨拶』の前書きや『獅子のたてがみ』などで言及）。ローリー・R・キングのパスティーシュ・シリーズでは、この引退後のホームズと少女メアリー・ラッセルとの出会いが描かれる。",
+    related:["beekeepers-apprentice","holmes","mary-russell","lions-mane-work"]},
+  "meiringen": {type:"place", relevance:"peripheral", name:"マイリンゲン（スイス）", coords:[46.7296,8.1758], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/AufSherlocksSpuren5.JPG", year:"2007年", credit:"Yesuitus2001", license:"CC BY-SA 2.5", sourceUrl:"https://commons.wikimedia.org/wiki/File:AufSherlocksSpuren5.JPG"}],
+    desc:"ライヘンバッハの滝の麓にある町。町の広場には世界初のホームズ像とホームズ記念館があり、通りの名前にも英国風のものが多い。",
+    related:["reichenbach","holmes","watson","final-problem"]},
+  "karuizawa": {type:"place", relevance:"peripheral", name:"軽井沢（追分、日本）", coords:[36.3395,138.5934], image:null,
+    desc:"長野県軽井沢町追分の庚申塚公園に立つホームズ像。翻訳家・延原謙がこの地に別荘を構えて正典の翻訳を手がけたことにちなみ、1988年に建立された。",
+    related:["holmes","jshc-term","japan-holmes-spots-term"]},
+  "bam-kamakura": {type:"place", relevance:"peripheral", name:"英国アンティーク博物館 BAM鎌倉", coords:[35.3232,139.5538], image:null,
+    desc:"2022年9月、鎌倉・若宮大路に開館した英国アンティーク博物館。3階には「シャーロック・ホームズ博物館ロンドン」の協力を得て再現された『シャーロック・ホームズの部屋』がある。",
+    related:["holmes","conan-doyle","japan-holmes-spots-term"]},
+  "eikoku-kan-kobe": {type:"place", relevance:"peripheral", name:"英国館（神戸北野異人館街）", coords:[34.6989,135.1945], image:null,
+    desc:"1909年建築の異人館。2階には日本で最初に作られたとされる『シャーロック・ホームズの部屋』が再現されている。",
+    related:["holmes","japan-holmes-spots-term"]},
+  "edinburgh": {type:"place", relevance:"peripheral", name:"エディンバラ", coords:[55.9575,-3.1878], image:null,
+    desc:"作者アーサー・コナン・ドイルの生誕地。新市街のピカデリー・プレイス・ラウンドアバウト付近にホームズ像が立つ。",
+    related:["conan-doyle","holmes"]},
+  "baker-street-statue": {type:"place", relevance:"peripheral", name:"ベーカー街駅前のホームズ像（ロンドン）", coords:[51.5226,-0.1571], image:null,
+    desc:"地下鉄ベーカー街駅前に立つ、彫刻家ジョン・ダブルディによる高さ約3メートルのブロンズ像（1999年設置）。",
+    related:["baker-street","holmes","baker-street-station"]},
+  "baker-street-station": {type:"place", name:"地下鉄ベーカー街駅", coords:[51.5228,-0.1573], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Baker_Street_station_entrance_2020.jpg", year:"2020年", credit:"TheFrog001", license:"CC0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Baker_Street_station_entrance_2020.jpg"}],
+    desc:"1863年開業の世界最古の地下鉄駅の一つ。構内にはモリアーティの名を冠したパブもある。",
+    related:["baker-street","baker-street-statue","moriartys-pub","holmes"]},
+  "moriartys-pub": {type:"place", name:"パブ「モリアーティ」", coords:[51.5227,-0.1569], image:null,
+    desc:"ベーカー街駅構内にあった実在のパブ。ホームズ最大の宿敵、モリアーティ教授の名を冠していた。【※現在は閉店しており、跡地に痕跡は残っていない】",
+    related:["moriarty","baker-street-station"]},
+  "sherlock-holmes-hotel": {type:"place", relevance:"peripheral", name:"シャーロック・ホームズ・ホテル", coords:[51.5203,-0.1573], image:null,
+    desc:"ベーカー街108番地にある実在のホテル。ロビーや客室にホームズをモチーフにした装飾が施されている。【※現在は「Holmes Hotel London」に改称・リブランドされている（閉店はしていない）】",
+    related:["baker-street","holmes"]},
+  "wallace-collection": {type:"place", relevance:"peripheral", name:"ウォーレス・コレクション", coords:[51.5175,-0.1531], image:null,
+    desc:"マンチェスター・スクエアにある国立美術館。ベーカー街から徒歩圏内。",
+    related:["baker-street","holmes"]},
+  "wigmore-street-post-office": {type:"place", relevance:"peripheral", name:"ウイグモア街郵便局", coords:[51.5165,-0.1508], image:null,
+    desc:"ベーカー街近くのウイグモア街にある郵便局。",
+    related:["baker-street","holmes"]},
+  "langham-hotel": {type:"place", name:"ランガム・ホテル", coords:[51.5177,-0.1436], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Langham_london.jpg", year:"2005年", credit:"The Langham, London", license:"CC BY-SA 3.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Langham_london.jpg"}],
+    desc:"ポートランド・プレイスに建つ1865年開業の格式高いホテル。『四つの署名』などに名前が登場する。",
+    related:["holmes","sign-of-four"]},
+  "pall-mall": {type:"place", name:"ペル・メル街", coords:[51.5057,-0.1339], image:null,
+    desc:"紳士クラブが立ち並ぶ通り。ホームズの兄マイクロフトが会員だったとされる「ディオゲネス・クラブ」も、この界隈に想定されている。",
+    related:["mycroft-holmes","holmes"]},
+  "trafalgar-square": {type:"place", name:"トラファルガー広場", coords:[51.5080,-0.1281], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Toussaint%2C_Willem_%281865-1929%29%2C_Afb_ANWS00244000080.jpg", year:"1891年", credit:"Willem Toussaint", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:Toussaint%2C_Willem_%281865-1929%29%2C_Afb_ANWS00244000080.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Trafalgar_Square_2.jpg", year:"1880〜90年代頃", credit:"James Morley", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:Trafalgar_Square_2.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Trafalgar_Square%2C_London_2_-_Jun_2009.jpg", year:"2009年", credit:"Diliff", license:"CC BY-SA 3.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Trafalgar_Square%2C_London_2_-_Jun_2009.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Trafalgar_Square_-_panoramio_%281%29.jpg", year:"2011年", credit:"Ed Parsons", license:"CC BY-SA 3.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Trafalgar_Square_-_panoramio_%281%29.jpg"}],
+    desc:"ロンドン中心部の広場。ネルソン提督記念柱がそびえる。",
+    related:["holmes"]},
+  "whitehall": {type:"place", name:"ホワイトホール", coords:[51.5033,-0.1276], image:null,
+    desc:"官庁街として知られる通り。外務省をはじめとする省庁の建物が並ぶ。",
+    related:["foreign-office"]},
+  "foreign-office": {type:"place", name:"英国外務省", coords:[51.5029,-0.1281], image:null,
+    desc:"正典『第二の汚点』など、国家機密が絡む事件でしばしば舞台となる庁舎。",
+    related:["whitehall","holmes","second-stain-work"]},
+  "buckingham-palace": {type:"place", name:"バッキンガム宮殿", coords:[51.5014,-0.1419], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Buckingham_Palace_%2816361644386%29.jpg", year:"1900年頃", credit:"E. Wrench & Co.", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:Buckingham_Palace_%2816361644386%29.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Buckingham_Palace%2C_London_-_April_2009.jpg", year:"2009年", credit:"Diliff", license:"CC BY-SA 3.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Buckingham_Palace%2C_London_-_April_2009.jpg"}],
+    desc:"英国王室の宮殿。『ボヘミアの醜聞』のボヘミア国王のような高貴な依頼人が象徴する建物。",
+    related:["holmes"]},
+  "westminster-bridge": {type:"place", name:"ウェストミンスター橋とビッグベン", coords:[51.5007,-0.1246], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Koetsen_op_Westminster_Bridge_in_Londen_Westminster_Bridge_%28titel_op_object%29%2C_RP-F-F01856-B.jpg", year:"1870〜1900年頃", credit:"Rijksmuseum", license:"CC0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Koetsen_op_Westminster_Bridge_in_Londen_Westminster_Bridge_%28titel_op_object%29%2C_RP-F-F01856-B.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Westminster_Bridge_and_Houses_of_Parliament_London_England_c._1900.jpg", year:"1900年頃", credit:"American Stereoscopic Company", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:Westminster_Bridge_and_Houses_of_Parliament_London_England_c._1900.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Reflections_on_the_Thames%2C_Westminster_-_Grimshaw%2C_John_Atkinson.jpg", year:"1880年（絵画）", credit:"John Atkinson Grimshaw", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:Reflections_on_the_Thames%2C_Westminster_-_Grimshaw%2C_John_Atkinson.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/London%2C_Palace_of_Westminster_--_2016_--_4800.jpg", year:"2016年", credit:"Dietmar Rabich", license:"CC BY-SA 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:London%2C_Palace_of_Westminster_--_2016_--_4800.jpg"}],
+    desc:"国会議事堂とビッグベンを望むテムズ河の橋。",
+    related:["holmes"]},
+  "charing-cross": {type:"place", name:"チャリング・クロス", coords:[51.5074,-0.1223], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Charing_Cross_Station_-_geograph.org.uk_-_4304382.jpg", year:"2014年", credit:"N Chadwick", license:"CC BY-SA 2.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Charing_Cross_Station_-_geograph.org.uk_-_4304382.jpg"}],
+    desc:"ロンドンの中心地とされる交差点および駅。",
+    related:["holmes","scotland-yard"]},
+  "sherlock-holmes-pub": {type:"place", relevance:"peripheral", name:"パブ「ザ・シャーロック・ホームズ」", coords:[51.5079,-0.1257], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Sherlock_Holmes%2C_Charing_Cross%2C_WC2.jpg", year:"2025年", credit:"Ewan-M", license:"CC BY-SA 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Sherlock_Holmes%2C_Charing_Cross%2C_WC2.jpg"}],
+    desc:"ノーサンバーランド街にある実在のパブ。店内二階にホームズの部屋を再現した展示がある。",
+    related:["holmes","watson"]},
+  "lyceum-theatre": {type:"place", name:"ライシーアム劇場", coords:[51.5112,-0.1200], image:null,
+    desc:"『四つの署名』で、メアリー・モースタンがホームズとワトスンに待ち合わせを指示する場面の舞台。",
+    related:["sign-of-four","holmes","watson"]},
+  "covent-garden": {type:"place", name:"コヴェント・ガーデン", coords:[51.5117,-0.1240], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/London%2C_Covent_Garden_--_2016_--_4878.jpg", year:"2016年", credit:"Dietmar Rabich", license:"CC BY-SA 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:London%2C_Covent_Garden_--_2016_--_4878.jpg"}],
+    desc:"青果市場から発展した繁華街。",
+    related:["holmes"]},
+  "bow-street": {type:"place", name:"ボウ街", coords:[51.5129,-0.1198], image:null,
+    desc:"かつてボウ街警察裁判所が置かれていた通り。",
+    related:["scotland-yard","holmes"]},
+  "british-museum": {type:"place", name:"大英博物館", coords:[51.5194,-0.1270], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/British_Museum%2C_London%2C_England-LCCN2002696924.jpg", year:"1890〜1900年頃", credit:"Photochrom Print Collection", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:British_Museum%2C_London%2C_England-LCCN2002696924.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Front_entrance_of_the_British_Museum%2C_London-geograph-3326706.jpg", year:"2013年", credit:"Rob Purvis", license:"CC BY-SA 2.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Front_entrance_of_the_British_Museum%2C_London-geograph-3326706.jpg"}],
+    desc:"世界有数の博物館。すぐ近くのモンタギュー街に、ホームズがベーカー街に移る前に暮らしていたとされる。",
+    related:["montague-street","holmes"]},
+  "montague-street": {type:"place", name:"モンタギュー街", coords:[51.5205,-0.1256], image:null,
+    desc:"正典『マスグレーヴ家の儀式』で言及される、ホームズが開業したての探偵として暮らしていたとされる通り。",
+    related:["british-museum","holmes","musgrave-ritual","gloria-scott-work"]},
+  "museum-tavern": {type:"place", relevance:"peripheral", name:"パブ「ミュージアム・タヴァーン」", coords:[51.5188,-0.1265], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Museum_Tavern%2C_49_Great_Russell_Street_-_geograph.org.uk_-_1156588.jpg", year:"2009年", credit:"Oxyman", license:"CC BY-SA 2.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Museum_Tavern%2C_49_Great_Russell_Street_-_geograph.org.uk_-_1156588.jpg"}],
+    desc:"大英博物館の向かいにある実在のパブ。",
+    related:["british-museum"]},
+  "royal-albert-hall": {type:"place", name:"アルバート・ホール", coords:[51.5009,-0.1773], image:null,
+    desc:"1871年開館の円形コンサートホール。",
+    related:["holmes"]},
+  "crowborough": {type:"place", relevance:"peripheral", name:"クロウボロ", coords:[51.0524,0.1547], image:null,
+    desc:"東サセックスの町。コナン・ドイルが晩年を過ごした邸宅「ウィンドルシャム」があった地。",
+    related:["conan-doyle","his-last-bow-work"]},
+
+  "mycroft-holmes": {type:"person", name:"マイクロフト・ホームズ", image:null,
+    desc:"シャーロックの7歳年上の兄。英国政府の機密に関わる要職にあり、ディオゲネス・クラブの創設会員。",
+    related:["holmes","pall-mall"]},
+  "conan-doyle": {type:"person", name:"アーサー・コナン・ドイル", image:null,
+    desc:"シャーロック・ホームズの生みの親であるスコットランド出身の作家（1859〜1930）。",
+    related:["edinburgh","holmes","canon-term","crowborough"]},
+  "holmes": {type:"person", name:"シャーロック・ホームズ", image:null,
+    desc:"鋭い観察眼と演繹的推理によって数々の難事件を解決する私立探偵。[[221Bベーカー街|ベーカー街221B]]に住み、[[ワトスン]]を相棒とする。",
+    related:["baker-street","st-barts","watson","moriarty","mrs-hudson","study-in-scarlet","hound-baskervilles","final-problem","seven-percent-solution","herlock-sholmes","beekeepers-apprentice","sign-of-four","musgrave-ritual","mycroft-holmes","montague-street","sherlock-holmes-pub","lyceum-theatre","baker-street-station","irene-adler","scandal-in-bohemia","st-johns-wood-briony-lodge","piccadilly-circus"]},
+  "watson": {type:"person", name:"ジョン・H・ワトスン医師", image:null,
+    desc:"アフガン戦争帰りの軍医。ホームズの相棒として多くの事件に同行し、その記録者として物語の語り手を務める。",
+    related:["baker-street","st-barts","holmes","study-in-scarlet","hound-baskervilles"]},
+  "moriarty": {type:"person", name:"モリアーティ教授", image:null,
+    desc:"元数学教授にしてロンドンの犯罪組織を裏で統べる「犯罪界のナポレオン」。",
+    related:["final-problem","holmes","reichenbach"]},
+  "mrs-hudson": {type:"person", name:"ハドスン夫人", image:null,
+    desc:"221Bの家主。ホームズとワトスンの生活を長年支え続ける存在。",
+    related:["baker-street","holmes","watson"]},
+  "lestrade": {type:"person", name:"レストレード警部", image:null,
+    desc:"スコットランド・ヤードの警部。しばしば行き詰まった事件をホームズに持ち込む。",
+    related:["scotland-yard","holmes"]},
+  "mary-russell": {type:"person", name:"メアリー・ラッセル", image:null,
+    desc:"ローリー・R・キングのパスティーシュ・シリーズの主人公。",
+    related:["sussex","beekeepers-apprentice","holmes"]},
+
+  "study-in-scarlet": {type:"work", canon:true, name:"『緋色の研究』(1887)", image:null,
+    desc:"ホームズとワトスンの出会いを描く正典第一作の長編。",
+    related:["baker-street","st-barts","holmes","watson"]},
+  "sign-of-four": {type:"work", canon:true, name:"『四つの署名』(1890)", image:null,
+    desc:"正典第二作の長編。依頼人メアリー・モースタンとの出会いを描く。",
+    related:["holmes","watson","lyceum-theatre","camberwell"]},
+  "musgrave-ritual": {type:"work", canon:true, name:"『マスグレーヴ家の儀式』", image:null,
+    desc:"ホームズが探偵業を始めたばかりの若い頃の事件を回想する短編。",
+    related:["holmes","montague-street"]},
+  "hound-baskervilles": {type:"work", canon:true, name:"『バスカヴィル家の犬』", image:null,
+    desc:"正典屈指の人気を誇る長編。ダートムーアを舞台にした魔犬伝説の謎を解く。",
+    related:["dartmoor","holmes","watson","paddington-station"]},
+  "final-problem": {type:"work", canon:true, name:"『最後の事件』", image:null,
+    desc:"ホームズとモリアーティの対決を描く短編。",
+    related:["reichenbach","holmes","moriarty"]},
+  "seven-percent-solution": {type:"work", canon:false, name:"『シャーロック・ホームズ 心理分析』(1974)", image:null,
+    desc:"ニコラス・メイヤーによる著名なパスティーシュ小説。",
+    related:["vienna","holmes","pastiche-term"]},
+  "herlock-sholmes": {type:"work", canon:false, name:"『アルセーヌ・ルパン対エルロック・ショルメス』", image:null,
+    desc:"モーリス・ルブランの怪盗ルパン・シリーズに登場する、著名なパロディ的パスティーシュ。",
+    related:["paris","holmes","pastiche-term"]},
+  "beekeepers-apprentice": {type:"work", canon:false, name:"『パイプの吸える椅子』", image:null,
+    desc:"ローリー・R・キングによるパスティーシュ・シリーズ第一作。",
+    related:["sussex","holmes","mary-russell"]},
+
+  "pastiche-term": {type:"term", name:"パスティーシュとは", image:null,
+    desc:"原作者以外の書き手が、原作の文体や世界観を模倣して書いた作品を指す言葉。",
+    related:["seven-percent-solution","herlock-sholmes","beekeepers-apprentice"]},
+  "canon-term": {type:"term", name:"正典（Canon）とは", image:null,
+    desc:"アーサー・コナン・ドイル自身が書いた60編を指すファンの間の呼び名。",
+    related:["study-in-scarlet","hound-baskervilles","final-problem","conan-doyle"]},
+  "jshc-term": {type:"term", name:"日本シャーロック・ホームズ・クラブ（JSHC）とは", image:null,
+    desc:"1977年発足の、日本のシャーロキアンのための親睦団体。",
+    related:["karuizawa","holmes"]},
+  "japan-holmes-spots-term": {type:"term", name:"日本国内のホームズゆかりの地", image:null,
+    desc:"軽井沢のホームズ像、鎌倉のBAM鎌倉、神戸北野異人館の英国館など、日本国内にもホームズの世界観を体験できるスポットが点在する。",
+    related:["karuizawa","bam-kamakura","eikoku-kan-kobe"]},
+
+  "st-johns-wood-briony-lodge": {type:"place", name:"セント・ジョンズ・ウッド（ブライオニー荘）", coords:[51.5347,-0.1740], image:null,
+    desc:"『ボヘミアの醜聞』で、ホームズが“あの女性”と呼ぶアイリーン・アドラーが暮らしていたブライオニー荘があったとされる界隈。ボヘミア国王の依頼でホームズが張り込みを行った舞台。",
+    related:["holmes","watson","irene-adler","scandal-in-bohemia"]},
+  "piccadilly-circus": {type:"place", name:"ピカデリー・サーカス", coords:[51.5100,-0.1345], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/In_the_Heart_of_Modern_Babylon%2C_Piccadilly_Circus%2C_London%2C_England_MET_DP73365.jpg", year:"1896年", credit:"Strohmeyer & Wyman / Underwood & Underwood", license:"CC0", sourceUrl:"https://commons.wikimedia.org/wiki/File:In_the_Heart_of_Modern_Babylon%2C_Piccadilly_Circus%2C_London%2C_England_MET_DP73365.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Piccadilly_Circus%2C_London_%28previous_to_alterations%29._c.1919.jpg", year:"1919年頃", credit:"Nic Costa Archive", license:"CC BY 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Piccadilly_Circus%2C_London_%28previous_to_alterations%29._c.1919.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/London%2C_Piccadilly_Circus_--_2016_--_4866.jpg", year:"2016年", credit:"Dietmar Rabich", license:"CC BY-SA 4.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:London%2C_Piccadilly_Circus_--_2016_--_4866.jpg"}],
+    desc:"劇場街ウェスト・エンドの中心地。『高名な依頼人』のカフェ・ロイヤル、『緋色の研究』のクライテリオン酒場、『赤毛組合』の会場、『バスカヴィル家の犬』のリージェント街など、複数の事件で目印や舞台として登場する交差点。",
+    related:["holmes","hound-baskervilles"]},
+  "grosvenor-hotel-victoria": {type:"place", name:"グロヴナー・ホテル（ヴィクトリア駅）", coords:[51.4965,-0.1447], image:null,
+    desc:"『技師の親指』に登場するホテル。ヴィクトリア駅に隣接する。",
+    related:["holmes"]},
+  "embankment-craven-street": {type:"place", name:"クレーヴン街（エンバンクメント駅周辺）", coords:[51.5079,-0.1243], image:null,
+    desc:"『高名な依頼人』に登場するメキスボロ・プライベート・ホテルがあったとされる通り。『バスカヴィル家の犬』ではノーサンバーランド街とを結ぶ抜け道（かつてトルコ風呂があった）としても言及される。",
+    related:["holmes","watson","hound-baskervilles"]},
+  "northumberland-hotel-site": {type:"place", name:"ノーサンバーランド・ホテル跡地", coords:[51.5073,-0.1254], image:null,
+    desc:"『バスカヴィル家の犬』でヘンリー・バスカヴィル卿が宿泊したホテルのモデル地とされる、ノーサンバーランド・アヴェニューにあったメトロポール・ホテルの跡地。",
+    related:["hound-baskervilles","holmes","sherlock-holmes-pub"]},
+  "st-pancras-kings-cross": {type:"place", name:"キングス・クロス／セント・パンクラス駅", coords:[51.5300,-0.1247], image:null,
+    desc:"『花婿失踪事件』の舞台の一つ。花嫁候補が結婚式を挙げる予定だったとされる教会の候補地セント・パンクラス・オールド・チャーチや、セント・パンクラス・ホテル（旧ミッドランド・グランド・ホテル）が近くにある。",
+    related:["holmes","watson"]},
+  "regents-park-harley-street": {type:"place", name:"ハーリー街（リージェンツ・パーク駅周辺）", coords:[51.5205,-0.1500], image:null,
+    desc:"医師が多く開業する通りとして知られ、『悪魔の足』『青いガーネット』『入院患者』など複数の事件で言及される。",
+    related:["holmes","watson","blue-carbuncle-work","resident-patient-work"]},
+  "bond-street-claridges": {type:"place", name:"クラリッジス・ホテル（ボンド街周辺）", coords:[51.5118,-0.1479], image:null,
+    desc:"『最後の挨拶』『ソア橋事件』に登場する高級ホテル。近くのグロヴナー・スクェアは『三破風館』の舞台。",
+    related:["holmes","his-last-bow-work","thor-bridge-work","three-gables-work"]},
+  "marble-arch-hyde-park": {type:"place", name:"ハイド・パーク（マーブル・アーチ駅周辺）", coords:[51.5131,-0.1594], image:null,
+    desc:"『空き家の冒険』でホームズが言及するロンドン随一の公園。園内のサーペンタイン池も知られる。",
+    related:["holmes","empty-house-work"]},
+  "greenwich-blackheath": {type:"place", name:"ブラックヒース（グリニッジ駅周辺）", coords:[51.4640,0.0074], image:null,
+    desc:"『スリークォーターの失踪』『サセックスの吸血鬼』『隠居絵具師』など複数の事件の舞台となった地区。ラグビークラブの名としても言及される。",
+    related:["holmes","watson","missing-three-quarter-work","sussex-vampire-work","retired-colourman-work"]},
+  "camden-town-zoo": {type:"place", name:"ロンドン動物園（カムデン・タウン駅周辺）", coords:[51.5353,-0.1536], image:null,
+    desc:"『犯人は二人（チャールズ・オーガスタス・ミルヴァートン）』に登場する動物園。",
+    related:["holmes","watson","charles-augustus-milverton-work"]},
+  "canterbury-station": {type:"place", name:"カンタベリー鉄道駅", coords:[51.2745,1.0730], image:null,
+    desc:"『最後の事件』で、モリアーティに追われるホームズとワトスンが途中下車してやり過ごしたとされる駅。ロンドンから離れた逃避行の緊迫感を伝える地点。",
+    related:["final-problem","holmes","watson","moriarty"]},
+  "portsmouth-doyle": {type:"place", relevance:"peripheral", name:"ポーツマス", coords:[50.7989,-1.0912], image:null,
+    desc:"コナン・ドイルが医師として開業していた町。『緋色の研究』『海軍条約文書事件』『最後の挨拶』などにも言及があり、ポーツマス博物館にはシャーロキアン研究家リチャード・ランセリン・グリーン氏のコレクションが展示されている。",
+    related:["conan-doyle","holmes","naval-treaty-work"]},
+  "euston-station": {type:"place", name:"ユーストン駅", coords:[51.5282,-0.1337], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Euston_Arch.jpg", year:"1890年", credit:"不明（Unknown author）", license:"Public Domain", sourceUrl:"https://commons.wikimedia.org/wiki/File:Euston_Arch.jpg"},{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Euston_station_MMB_78.jpg", year:"2012年", credit:"mattbuck", license:"CC BY-SA 3.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Euston_station_MMB_78.jpg"}],
+    desc:"『緋色の研究』『プライオリ学校』『白面の兵士』など複数の事件で言及される鉄道駅。近くのリトル・ジョージ街も『緋色の研究』に登場する。",
+    related:["holmes","watson","study-in-scarlet","priory-school-work","blanched-soldier-work"]},
+  "clapham-common-greek-interpreter": {type:"place", name:"ワンズワースの原（クラパム・サウス駅周辺）", coords:[51.4618,-0.1384], image:null,
+    desc:"『ギリシャ語通訳』で、通訳のメラス氏がギリシャ語での通訳を終えたのち置き去りにされたとされる原っぱ。",
+    related:["holmes","watson","greek-interpreter-work"]},
+
+  "irene-adler": {type:"person", name:"アイリーン・アドラー", image:null,
+    desc:"『ボヘミアの醜聞』に登場する、ホームズが“あの女性”と呼ぶ元オペラ歌手。数少ない、知略でホームズを出し抜いた人物として描かれる。",
+    related:["holmes","scandal-in-bohemia","st-johns-wood-briony-lodge"]},
+  "scandal-in-bohemia": {type:"work", canon:true, name:"『ボヘミアの醜聞』", image:null,
+    desc:"正典短編集の第一作。ボヘミア国王の依頼を受けたホームズが、アイリーン・アドラーと知恵比べを繰り広げる、シリーズ屈指の人気作。",
+    related:["holmes","watson","irene-adler","st-johns-wood-briony-lodge"]},
+
+  "devils-foot-cornwall": {type:"place", name:"コーンウォール（ポルドゥ湾周辺）", coords:[50.0350,-5.2650], image:null,
+    desc:"『悪魔の足』の舞台。療養のためコーンウォールを訪れていたホームズとワトスンが、隣人の怪死事件に遭遇する。荒涼としたリザード半島の風景が事件の不穏な空気を強めている。",
+    related:["holmes","watson","devils-foot-work"]},
+  "dancing-men-norfolk": {type:"place", name:"ノース・ウォルシャム（ノーフォーク州）", coords:[52.8200,1.3900], image:null,
+    desc:"『踊る人形』の舞台、ライディング・ソープ荘があるとされる地。暗号のように並んだ棒人形のメッセージが事件の発端となる、正典屈指の人気作。",
+    related:["holmes","watson","dancing-men-work"]},
+  "speckled-band-surrey": {type:"place", name:"ストーク・ダバノン（サリー州）", coords:[51.3080,-0.3660], image:null,
+    desc:"『まだらの紐』に登場する屋敷ストーク・モランのモデルとされる村。義父の毒蛇による連続殺人未遂という、正典でも屈指の恐怖度で知られる事件の舞台。",
+    related:["holmes","watson","speckled-band-work"]},
+  "reigate-squire": {type:"place", name:"レイゲイト（サリー州）", coords:[51.2350,-0.2050], image:null,
+    desc:"『ライゲイトの地主』の舞台となった町。療養中のホームズが、休養先で偶然事件に巻き込まれる。",
+    related:["holmes","watson","reigate-squire-work"]},
+  "winchester-copper-beeches": {type:"place", name:"ウィンチェスター（ハンプシャー州）", coords:[51.0632,-1.3080], image:null,
+    desc:"『ぶな屋敷』の舞台近郊の町。家庭教師として雇われた依頼人が奇妙な要求をされる、女性が主人公となる代表的な一編。",
+    related:["holmes","watson","copper-beeches-work"]},
+  "boscombe-valley-herefordshire": {type:"place", name:"ロス・オン・ワイ（ヘレフォードシャー州）", coords:[51.9100,-2.5800], image:null,
+    desc:"『ボスコム谷の惨劇』の舞台近郊。オーストラリア帰りの人物が絡む殺人事件を描く。この地方はドイルが『バスカヴィル家の犬』の着想を得た土地の一つともされる。",
+    related:["holmes","watson","hound-baskervilles","boscombe-valley-work"]},
+  "lauriston-gardens-brixton": {type:"place", name:"ブリクストン（ローリストン・ガーデンズ）", coords:[51.4613,-0.1156], image:null,
+    desc:"『緋色の研究』で、ホームズとワトスンが最初に手がけた事件の殺人現場となった通り（架空の番地）があるとされる地区。二人の探偵コンビとしての第一歩を描く記念すべき舞台。",
+    related:["holmes","watson","study-in-scarlet"]},
+  "baskerville-hall-hotel": {type:"place", relevance:"peripheral", name:"バスカヴィル・ホール・ホテル（ヘレフォードシャー／ウェールズ境）", coords:[52.0730,-3.1400], image:null,
+    desc:"ドイルが「バスカヴィル」という名を着想したとされる、クライロ近郊の実在する屋敷（現在はホテル）。物語の舞台自体はダートムーアに設定されているが、名前の由来はこの地とされる。",
+    related:["hound-baskervilles","holmes","conan-doyle"]},
+  "aldershot-crooked-man": {type:"place", name:"オルダーショット（ハンプシャー州）", coords:[51.2480,-0.7590], image:null,
+    desc:"『背の曲がった男』の舞台となった陸軍駐屯地の町。退役軍人にまつわる過去の因縁が明かされる一編。",
+    related:["holmes","watson","crooked-man-work"]},
+
+  "empty-house-camden-house": {type:"place", name:"空き家（32-34番地、カムデン・ハウス跡）", coords:[51.5180,-0.1554], image:null,
+    desc:"『空き家の冒険』の舞台。ホームズの「死」の間、兄マイクロフトが221Bの部屋と書類を保管していたことが明かされる作品でもある。ホームズとワトスンは遠回りしてこの空き家の裏手から侵入し、狙撃犯セバスチャン・モラン大佐を待ち伏せて捕らえた。この時の道筋から、221Bの正確な位置を推測する研究もある。",
+    related:["holmes","watson","baker-street","empty-house-work"]},
+  "watsons-hotel-golden-cross": {type:"place", name:"ワトスンの宿（ゴールデン・クロス・ホテル跡）", coords:[51.5084,-0.1263], image:null,
+    desc:"『緋色の研究』で、負傷除隊してロンドンに戻ったワトスンが最初に滞在したとされる、ストランドにあった安宿。傷病年金だけでは生活が苦しく、同居人を探すきっかけとなった場所。",
+    related:["watson","study-in-scarlet","holmes"]},
+  "mordecai-smiths-boatyard": {type:"place", name:"モーデカイ・スミスの船着場", coords:[51.4926,-0.1221], image:null,
+    desc:"『四つの署名』のテムズ川追跡劇の起点となった船着場。ホームズたちが追う相手が高速蒸気船オーロラ号を借り出した場所とされる。",
+    related:["sign-of-four","holmes","watson"]},
+  "diogenes-club": {type:"place", name:"ディオゲネス・クラブ（ペル・メル街）", coords:[51.5057,-0.1361], image:null,
+    desc:"『ギリシャ語通訳』で、ホームズの兄マイクロフトが創設会員の一人とされる、ロンドンでも指折りの奇妙な社交倶楽部。マイクロフトは毎日決まった時間帯をここで過ごす。『最後の事件』でも、モリアーティ絡みの騒動の直後にホームズが身を寄せた場所として描かれる。",
+    related:["mycroft-holmes","holmes","pall-mall","greek-interpreter-work","final-problem"]},
+  "criterion-bar": {type:"place", name:"クライテリオン・バー", coords:[51.5098,-0.1341], image:null,
+    desc:"『緋色の研究』で、同居人を探していたワトスンが旧知のスタンフォードと再会したバー。この再会がきっかけとなり、スタンフォードの紹介でホームズと引き合わされることになる。店内には、二人の出会いにまつわる由来を記したプレートが今も掲げられている。",
+    related:["watson","holmes","study-in-scarlet","st-barts"]},
+  "cafe-royal": {type:"place", name:"カフェ・ロイヤル", coords:[51.5101,-0.1358], image:null,
+    desc:"『高名な依頼人』で、ホームズが棒を持った二人組に襲撃された場所。ホームズは店内を突っ切ってグラスハウス街へ逃げ込み難を逃れた。",
+    related:["holmes","illustrious-client-work"]},
+  "simpsons-in-the-strand": {type:"place", name:"シンプソンズ・イン・ザ・ストランド", coords:[51.5108,-0.1203], image:null,
+    desc:"『瀕死の探偵』で、3日間の断食を終えたホームズが「シンプソンズで何か栄養のあるものを」と口にする老舗レストラン。『高名な依頼人』でもホームズとワトスンが窓際の席で密談する舞台となる。ロンドンを代表する英国料理店の一つとして現在も営業を続けている。",
+    related:["holmes","watson","dying-detective-work","illustrious-client-work"]},
+  "pondicherry-lodge": {type:"place", name:"ポンディシェリー荘（アッパー・ノーウッド）", coords:[51.4030,-0.0881], image:null,
+    desc:"『四つの署名』で、退役軍人メジャー・ショルトーが晩年を過ごした屋敷。研究家バーナード・デービスの詳細な考証により、ロス・ロードのキルレイヴォック・ハウスがモデル地として特定されている。",
+    related:["sign-of-four","holmes","watson"]},
+  "wisteria-lodge": {type:"place", name:"ウィステリア荘（オックスショット／エシャー）", coords:[51.3603,-0.3631], image:null,
+    desc:"『ウィステリア荘事件』の舞台。スコット・エクルズが数日間の滞在に招かれた、スペイン人の使用人がいる古びた屋敷。夕食の席に届いた一通のメモをきっかけに事件が動き出す。",
+    related:["holmes","watson","wisteria-lodge-work"]},
+  "grant-munros-norbury": {type:"place", name:"グラント・マンロー邸（ノーベリー）", coords:[51.4106,-0.1178], image:null,
+    desc:"『黄色い顔』の舞台。ホップ商人グラント・マンローが妻エフィーの収入も合わせて借りた邸宅。近所の別荘の窓に見えた奇妙な黄色い顔が事件の発端となる。",
+    related:["holmes","watson","yellow-face-work"]},
+  "alexander-holders-streatham": {type:"place", name:"アレグザンダー・ホールダー邸（ストレタム）", coords:[51.4354,-0.1261], image:null,
+    desc:"『緑柱石の宝冠』の舞台。銀行家ホールダーが担保として預かった宝冠を保管していた自宅。夜中に息子アーサーが宝冠を手にしているところを目撃し、事件が発覚する。",
+    related:["holmes","watson","beryl-coronet-work"]},
+  "ronald-adairs-park-lane": {type:"place", name:"ロナルド・アデア邸跡（パーク・レーン）", coords:[51.5121,-0.1573], image:null,
+    desc:"『空き家の冒険』で、密室状態の部屋で射殺された名士ロナルド・アデアの自宅跡。対岸のグリーン街から狙撃されたと推測されることから、パーク・レーンとグリーン街の角に建つ二軒のうちの一軒がモデルとされている。",
+    related:["holmes","empty-house-camden-house","empty-house-work"]},
+  "conan-doyle-surgery-wimpole": {type:"place", relevance:"peripheral", name:"コナン・ドイルの診療所（アッパー・ウィンポール街）", coords:[51.5205,-0.1494], image:null,
+    desc:"コナン・ドイルが眼科医として短期間開業していた場所。患者がほとんど来なかったため、その時間を執筆に充てたという逸話で知られる。ウェストミンスター市による記念プレートが建物に掲げられている。",
+    related:["conan-doyle"]},
+  "conan-doyle-house-tennison-road": {type:"place", relevance:"peripheral", name:"コナン・ドイルの旧居（テニソン・ロード）", coords:[51.3951,-0.0806], image:null,
+    desc:"サウス・ノーウッドにあるコナン・ドイルのかつての自宅。1973年にブルー・プラーク（歴史的建造物に設置される記念プレート）が取り付けられている。",
+    related:["conan-doyle"]},
+  "sherlock-holmes-frieze-odeon": {type:"place", relevance:"peripheral", name:"オデオン座のホームズ・フリーズ（コヴェント・ガーデン）", coords:[51.5142,-0.1281], image:null,
+    desc:"1931年開館の映画館（旧セヴィル劇場）の壁面に施された装飾彫刻（フリーズ）。彫刻家ギルバート・ベイズの手によるもので、ロンドンに現存する最古のホームズ彫像（モリアーティとみられる人物も一緒に）とされている。",
+    related:["holmes","covent-garden"]},
+
+  "empty-house-work": {type:"work", canon:true, name:"『空き家の冒険』", image:null,
+    desc:"ホームズが「死」から生還したことが明かされる短編。名士ロナルド・アデアの密室殺人を解決する過程で、ライヘンバッハでの顛末や、宿敵モラン大佐との対決が語られる。",
+    related:["holmes","watson","empty-house-camden-house","ronald-adairs-park-lane","final-problem"]},
+  "yellow-face-work": {type:"work", canon:true, name:"『黄色い顔』", image:null,
+    desc:"ホームズが推理を誤り、依頼人の抱える事情に人間味あふれる真相があったことを知る珍しい一編。ホームズ自身の失敗が描かれる、シリーズの中でも異色の作品。",
+    related:["holmes","watson","grant-munros-norbury"]},
+  "beryl-coronet-work": {type:"work", canon:true, name:"『緑柱石の宝冠』", image:null,
+    desc:"銀行家が担保として預かった国宝級の宝冠が何者かに傷つけられる事件を描く短編。身内の疑惑と真犯人の意外性が読みどころ。",
+    related:["holmes","watson","alexander-holders-streatham"]},
+  "wisteria-lodge-work": {type:"work", canon:true, name:"『ウィステリア荘事件』", image:null,
+    desc:"招かれた屋敷で奇妙な晩餐に遭遇した依頼人の話から、中南米の政治的な陰謀に発展していく中編。正典の中でも異国情緒の強い一編とされる。",
+    related:["holmes","watson","wisteria-lodge"]},
+  "dying-detective-work": {type:"work", canon:true, name:"『瀕死の探偵』", image:null,
+    desc:"ホームズが謎の熱病に倒れたと聞いたワトスンが駆けつける短編。実はホームズが仕掛けた芝居であったことが明かされる、ホームズの役者ぶりが際立つ一編。",
+    related:["holmes","watson","simpsons-in-the-strand"]},
+  "illustrious-client-work": {type:"work", canon:true, name:"『高名な依頼人』", image:null,
+    desc:"身分を明かせない高貴な依頼人からの依頼で、悪名高い伯爵の正体を暴こうとする中編。ホームズ自身が暴漢に襲われる場面もある、緊迫感の強い後期の作品。",
+    related:["holmes","watson","simpsons-in-the-strand","cafe-royal"]},
+  "greek-interpreter-work": {type:"work", canon:true, name:"『ギリシャ語通訳』", image:null,
+    desc:"ホームズの兄マイクロフトが初めて登場する短編。ディオゲネス・クラブという奇妙な社交倶楽部や、兄弟の推理合戦も見どころ。",
+    related:["holmes","watson","mycroft-holmes","diogenes-club","clapham-common-greek-interpreter"]},
+  "dancing-men-work": {type:"work", canon:true, name:"『踊る人形』", image:null,
+    desc:"棒人形の形をした暗号のメッセージが事件の発端となる、正典屈指の人気作。暗号解読という知的な魅力と、悲劇的な結末を併せ持つ一編。",
+    related:["holmes","watson","dancing-men-norfolk"]},
+  "speckled-band-work": {type:"work", canon:true, name:"『まだらの紐』", image:null,
+    desc:"義父による連続殺人未遂を描く、正典の中でも屈指の恐怖度で知られる短編。密室トリックの完成度の高さでも有名。",
+    related:["holmes","watson","speckled-band-surrey"]},
+  "reigate-squire-work": {type:"work", canon:true, name:"『ライゲイトの地主』", image:null,
+    desc:"療養中のホームズが、休養先で偶然巻き込まれる殺人事件を描く短編。体調が万全でない中での推理という珍しい設定が特徴。",
+    related:["holmes","watson","reigate-squire"]},
+  "copper-beeches-work": {type:"work", canon:true, name:"『ぶな屋敷』", image:null,
+    desc:"家庭教師の職を得た若い女性が、奇妙な条件を課されることに違和感を覚えて相談に訪れる短編。ホームズが女性依頼人に寄り添う姿勢を見せる一編としても知られる。",
+    related:["holmes","watson","winchester-copper-beeches"]},
+  "boscombe-valley-work": {type:"work", canon:true, name:"『ボスコム谷の惨劇』", image:null,
+    desc:"オーストラリア帰りの人物をめぐる父子の因縁と殺人事件を描く短編。田園地帯を舞台にした正典初期の代表作の一つ。",
+    related:["holmes","watson","boscombe-valley-herefordshire"]},
+  "crooked-man-work": {type:"work", canon:true, name:"『背の曲がった男』", image:null,
+    desc:"退役軍人の家庭に起きた不可解な死をめぐり、遠い過去の因縁が明らかになる短編。インドでの出来事が影を落とす、ミステリーとしての完成度も高い一編。",
+    related:["holmes","watson","aldershot-crooked-man"]},
+  "devils-foot-work": {type:"work", canon:true, name:"『悪魔の足』", image:null,
+    desc:"療養先のコーンウォールで、ホームズとワトスンが隣人の怪死事件に巻き込まれる短編。ホームズが自ら危険な薬物を試す場面でも知られる。",
+    related:["holmes","watson","devils-foot-cornwall"]},
+  "his-last-bow-work": {type:"work", canon:true, name:"『最後の挨拶』", image:null,
+    desc:"第一次世界大戦前夜を舞台に、引退したはずのホームズがドイツのスパイ網を追う短編。正典の中では時代設定が最も新しく、ホームズとワトスンの再会も描かれる。",
+    related:["holmes","watson","bond-street-claridges","crowborough"]},
+  "thor-bridge-work": {type:"work", canon:true, name:"『ソア橋事件』", image:null,
+    desc:"橋の上で起きた銃撃事件の謎を解く短編。物理トリックの完成度の高さで知られ、ホームズ物語屈指の本格ミステリーとも評される。",
+    related:["holmes","watson","bond-street-claridges"]},
+  "three-gables-work": {type:"work", canon:true, name:"『三破風館』", image:null,
+    desc:"若くして亡くなった作家の未発表原稿をめぐる事件を描く短編。後期の正典作品の一つ。",
+    related:["holmes","watson","bond-street-claridges"]},
+  "valley-of-fear-work": {type:"work", canon:true, name:"『恐怖の谷』(1915)", image:null,
+    desc:"長編第四作。ホームズ物語には珍しく、事件の背景として米国の秘密結社にまつわる過去が長く描かれる二部構成の長編。",
+    related:["holmes","watson","moriarty","camberwell"]},
+  "red-headed-league-work": {type:"work", canon:true, name:"『赤毛組合』", image:null,
+    desc:"赤毛の男だけが入会できるという奇妙な組合の求人広告をめぐる短編。奇抜な発端から始まり、思いがけない結末に至る代表作の一つ。",
+    related:["holmes","watson","aldersgate-barbican-station"]},
+  "case-of-identity-work": {type:"work", canon:true, name:"『花婿失踪事件』", image:null,
+    desc:"結婚式当日に姿を消した婚約者をめぐる依頼を描く短編。日常に潜む謎に見えて、実は身近な人物の思惑が絡む物語。",
+    related:["holmes","watson","westhouse-macbank-fenchurch"]},
+  "five-orange-pips-work": {type:"work", canon:true, name:"『オレンジの種五つ』", image:null,
+    desc:"謎の組織から届く「オレンジの種」が死の予告となる短編。ホームズが依頼人を救えなかった数少ない事件としても知られる。",
+    related:["holmes","watson","lloyds-register-fenchurch"]},
+  "twisted-lip-work": {type:"work", canon:true, name:"『唇のねじれた男』", image:null,
+    desc:"失踪した紳士が、実は物乞いに変装していたという意外な真相を描く短編。",
+    related:["holmes","watson","cannon-street-station-twisted-lip"]},
+  "blue-carbuncle-work": {type:"work", canon:true, name:"『青いガーネット』", image:null,
+    desc:"クリスマスの街で拾われたガチョウの体内から発見された宝石をめぐる短編。ホームズの温情が垣間見える一編としても知られる。",
+    related:["holmes","watson","regents-park-harley-street"]},
+  "engineers-thumb-work": {type:"work", canon:true, name:"『技師の親指』", image:null,
+    desc:"親指を切断されて逃げてきた技師の依頼から始まる短編。ホームズ物語の中でも特に緊迫感の強い一編。",
+    related:["holmes","watson","hatherley-engineering-victoria-st","paddington-station"]},
+  "noble-bachelor-work": {type:"work", canon:true, name:"『独身の貴族』", image:null,
+    desc:"結婚式直後に花嫁が姿を消した事件を描く短編。",
+    related:["holmes","watson","hatty-dorans-lancaster-gate"]},
+  "silver-blaze-work": {type:"work", canon:true, name:"『シルバー・ブレイズ（白銀号事件）』", image:null,
+    desc:"競走馬の失踪と調教師の死をめぐる短編。「夜中に犬が吠えなかったこと」に着目する推理で知られる代表作。",
+    related:["holmes","watson","paddington-station"]},
+  "stockbrokers-clerk-work": {type:"work", canon:true, name:"『株式仲買店員』", image:null,
+    desc:"好条件の転職話に隠された罠を描く短編。",
+    related:["holmes","watson"]},
+  "gloria-scott-work": {type:"work", canon:true, name:"『グロリア・スコット号』", image:null,
+    desc:"ホームズが探偵業を志すきっかけとなった学生時代の事件を、本人が回想する短編。",
+    related:["holmes","watson","montague-street"]},
+  "resident-patient-work": {type:"work", canon:true, name:"『入院患者』", image:null,
+    desc:"匿名の資産家に住み込みの診療を許した医師をめぐる短編。",
+    related:["holmes","watson","regents-park-harley-street"]},
+  "naval-treaty-work": {type:"work", canon:true, name:"『海軍条約文書事件』", image:null,
+    desc:"外務省から持ち出された機密文書の紛失事件を描く短編。ワトスンの旧友が依頼人となる。",
+    related:["holmes","watson","portsmouth-doyle"]},
+  "cardboard-box-work": {type:"work", canon:true, name:"『ボール箱』", image:null,
+    desc:"見知らぬ女性に送られた小包の中身が事件の発端となる短編。刊行当時、内容の陰惨さから一時発表が見合わされたといういわくつきの作品。",
+    related:["holmes","watson"]},
+  "norwood-builder-work": {type:"work", canon:true, name:"『ノーウッドの建築業者』", image:null,
+    desc:"遺言状の書き換え直後に姿を消した建築業者をめぐる短編。",
+    related:["holmes","watson","anerley-arms-inn"]},
+  "solitary-cyclist-work": {type:"work", canon:true, name:"『美しき自転車乗り』", image:null,
+    desc:"自転車で通勤する女性教師の後をつける謎の男を描く短編。",
+    related:["holmes","watson"]},
+  "priory-school-work": {type:"work", canon:true, name:"『プライオリ学校』", image:null,
+    desc:"名門寄宿学校から姿を消した公爵令息の捜索を描く、やや長めの短編。",
+    related:["holmes","watson","euston-station"]},
+  "black-peter-work": {type:"work", canon:true, name:"『黒ピーター』", image:null,
+    desc:"銛で刺殺された元捕鯨船長をめぐる短編。ホームズが自ら銛の扱いを試す場面でも知られる。",
+    related:["holmes","watson"]},
+  "charles-augustus-milverton-work": {type:"work", canon:true, name:"『犯人は二人（チャールズ・オーガスタス・ミルヴァートン）』", image:null,
+    desc:"恐喝屋を相手に、ホームズが道徳的な一線を踏み越える異色の短編。",
+    related:["holmes","watson","camden-town-zoo"]},
+  "six-napoleons-work": {type:"work", canon:true, name:"『六つのナポレオン像』", image:null,
+    desc:"立て続けに壊されるナポレオン像の謎を描く短編。事件の裏に隠された意外な目的が明かされる。",
+    related:["holmes","watson","saffron-hill"]},
+  "three-students-work": {type:"work", canon:true, name:"『三人の学生』", image:null,
+    desc:"試験問題の漏洩事件をめぐる短編。大学町を舞台にした珍しい一編。",
+    related:["holmes","watson"]},
+  "golden-pince-nez-work": {type:"work", canon:true, name:"『金縁の鼻眼鏡』", image:null,
+    desc:"書斎で殺害された秘書と、現場に残された鼻眼鏡の謎を描く短編。",
+    related:["holmes","watson"]},
+  "missing-three-quarter-work": {type:"work", canon:true, name:"『スリークォーターの失踪』", image:null,
+    desc:"大学対抗ラグビーの試合直前に姿を消した選手をめぐる短編。",
+    related:["holmes","watson","greenwich-blackheath"]},
+  "abbey-grange-work": {type:"work", canon:true, name:"『アビイ荘園』", image:null,
+    desc:"貴族の屋敷で起きた殺人事件を描く短編。正当防衛をめぐるホームズ独自の裁きが印象的な一編。",
+    related:["holmes","watson","adelaide-southampton-line"]},
+  "second-stain-work": {type:"work", canon:true, name:"『第二の汚点』", image:null,
+    desc:"外務省から盗まれた、国際問題に発展しかねない機密文書をめぐる短編。ホームズが政府高官から直接依頼を受ける格式高い一編。",
+    related:["holmes","watson","foreign-office"]},
+  "red-circle-work": {type:"work", canon:true, name:"『赤い輪』", image:null,
+    desc:"下宿屋の奇妙な間借り人をめぐる謎から、イタリアの秘密結社の陰謀に発展する短編。",
+    related:["holmes","watson","warrens-boarding-house"]},
+  "bruce-partington-plans-work": {type:"work", canon:true, name:"『ブルース・パーティントン設計書』", image:null,
+    desc:"兄マイクロフトの依頼で、国防に関わる潜水艦の設計書盗難事件を追う短編。",
+    related:["holmes","watson","mycroft-holmes","aldgate-tube-station"]},
+  "lady-frances-carfax-work": {type:"work", canon:true, name:"『フランシス・カーファックス姫の失踪』", image:null,
+    desc:"資産家の独身女性が忽然と姿を消した事件を描く短編。ホームズが珍しく後手に回る緊迫の展開で知られる。",
+    related:["holmes","watson","brixton-workhouse-infirmary"]},
+  "blanched-soldier-work": {type:"work", canon:true, name:"『白面の兵士』", image:null,
+    desc:"正典の中でも数少ない、ホームズ自身が語り手を務める短編。旧友の息子の顔にまつわる奇妙な相談から始まる。",
+    related:["holmes","euston-station"]},
+  "mazarin-stone-work": {type:"work", canon:true, name:"『マザリンの宝石』", image:null,
+    desc:"王冠の宝石盗難事件を描く短編。舞台劇として書かれた脚本を小説化した、正典の中でも異色の成り立ちを持つ一編。",
+    related:["holmes","watson","van-seddars-lime-street"]},
+  "sussex-vampire-work": {type:"work", canon:true, name:"『サセックスの吸血鬼』", image:null,
+    desc:"我が子の血を吸っていたと疑われる母親をめぐる短編。「吸血鬼」という怪奇的な題材を、ホームズが合理的に解き明かす。",
+    related:["holmes","watson","greenwich-blackheath"]},
+  "three-garridebs-work": {type:"work", canon:true, name:"『三人ガリデブ』", image:null,
+    desc:"同じ姓を持つ三人目の人物を探すという奇妙な依頼から始まる短編。ワトスンが負傷し、ホームズの人間味が垣間見える場面でも知られる。",
+    related:["holmes","watson"]},
+  "creeping-man-work": {type:"work", canon:true, name:"『這う男』", image:null,
+    desc:"若返りの薬に手を出した老教授の奇行を描く短編。正典の中でもSF色の強い異色作。",
+    related:["holmes","watson","doraks-general-store"]},
+  "lions-mane-work": {type:"work", canon:true, name:"『獅子のたてがみ』", image:null,
+    desc:"引退後のホームズ自身が語り手を務める短編。海辺で起きた謎の死の真相に、自然の脅威が関わる。",
+    related:["holmes","sussex"]},
+  "veiled-lodger-work": {type:"work", canon:true, name:"『ベールをかぶった下宿人』", image:null,
+    desc:"顔を隠して暮らす女性下宿人が、ホームズにだけ明かす過去の悲劇を描く短編。",
+    related:["holmes","watson","south-brixton"]},
+  "shoscombe-old-place-work": {type:"work", canon:true, name:"『ショスコム荘』", image:null,
+    desc:"競走馬の飼育で知られる荘園で起きた不可解な出来事を描く短編。正典の掉尾を飾る作品の一つ。",
+    related:["holmes","watson","curzon-street"]},
+  "retired-colourman-work": {type:"work", canon:true, name:"『隠居絵具師』", image:null,
+    desc:"引退した画材商の妻の失踪事件を描く短編。地味な人物の裏に隠された悪意が明かされる。",
+    related:["holmes","watson","greenwich-blackheath"]},
+  "camberwell": {type:"place", name:"カンバーウェル", coords:[51.4741,-0.093], image:null,
+    desc:"『四つの署名』でメアリー・モースタンが家庭教師として雇われるきっかけとなったセシル・フォレスター夫人が暮らしていた地区。『恐怖の谷』でも、ホームズが暗号文を解読する過程で言及される。",
+    related:["sign-of-four","valley-of-fear-work","holmes","watson"]},
+  "aldersgate-barbican-station": {type:"place", name:"オールダーズゲイト駅（現バービカン駅）", coords:[51.5214,-0.097], image:null,
+    desc:"『赤毛組合』で、ホームズとワトスンが依頼人ジェイベズ・ウィルソンの質屋を訪ねる際に降りた駅。",
+    related:["red-headed-league-work","holmes","watson"]},
+  "westhouse-macbank-fenchurch": {type:"place", name:"ウェストハウス・アンド・マーバンク商会（フェンチャーチ街）", coords:[51.512,-0.0806], image:null,
+    desc:"『花婿失踪事件』で、依頼人メアリー・サザーランドの継父ジェイムズ・ウィンディバンクが働いていたクラレット輸入商会。継父の正体が事件の核心に関わる。",
+    related:["case-of-identity-work","holmes","watson"]},
+  "lloyds-register-fenchurch": {type:"place", name:"ロイズ船級協会（フェンチャーチ街）", coords:[51.5127,-0.0791], image:null,
+    desc:"『オレンジの種五つ』で、依頼人ジョン・オープンショーの死後、ホームズが船舶記録を調べに一日中通ったとされる場所。",
+    related:["five-orange-pips-work","holmes"]},
+  "cannon-street-station-twisted-lip": {type:"place", name:"キャノン街駅", coords:[51.5114,-0.0909], image:null,
+    desc:"『唇のねじれた男』で、失踪した紳士ネヴィル・セント・クレアが毎晩5時14分の列車で帰宅していたとされる駅。",
+    related:["twisted-lip-work","holmes","watson"]},
+  "hatherley-engineering-victoria-st": {type:"place", name:"ハトリー技師事務所（ヴィクトリア街）", coords:[51.4968,-0.1438], image:null,
+    desc:"『技師の親指』の依頼人、水圧技師ヴィクター・ハトリーが事務所を構えていたとされる場所。",
+    related:["engineers-thumb-work","holmes","watson"]},
+  "hatty-dorans-lancaster-gate": {type:"place", name:"ハティ・ドランのランカスター・ゲイト", coords:[51.5137,-0.1759], image:null,
+    desc:"『独身の貴族』で、結婚披露宴の最中に姿を消した花嫁ハティ・ドランの実家があったとされる地区。",
+    related:["noble-bachelor-work","holmes","watson"]},
+  "paddington-station": {type:"place", name:"パディントン駅", coords:[51.5156,-0.1757], image:null,
+    photos:[{url:"https://commons.wikimedia.org/wiki/Special:FilePath/Paddington_station_MMB_69.jpg", year:"2013年", credit:"mattbuck", license:"CC BY-SA 3.0", sourceUrl:"https://commons.wikimedia.org/wiki/File:Paddington_station_MMB_69.jpg"}],
+    desc:"西部イングランド方面への玄関口となる駅。『技師の親指』『白銀号事件』『バスカヴィル家の犬』など、複数の正典作品で登場人物の出発点として言及される。",
+    related:["engineers-thumb-work","silver-blaze-work","hound-baskervilles","holmes","watson"]},
+  "anerley-arms-inn": {type:"place", name:"アナリー・アームズ・イン", coords:[51.4127,-0.066], image:null,
+    desc:"『ノーウッドの建築業者』で、依頼人ジョン・マクファーレンが、建築業者ジョナス・オールデーカーとの深夜の商談の後に一泊したとされる宿。",
+    related:["norwood-builder-work","holmes","watson"]},
+  "saffron-hill": {type:"place", name:"サフラン・ヒル", coords:[51.5204,-0.1068], image:null,
+    desc:"当時ロンドンのイタリア人街として知られた地区。『六つのナポレオン像』で、殺害された被害者ピエトロ・ヴェヌッチがこの界隈のマフィアと繋がりがあったことが語られる。",
+    related:["six-napoleons-work","holmes","watson"]},
+  "adelaide-southampton-line": {type:"place", name:"アデレード・サウサンプトン汽船会社（コックスパー街）", coords:[51.5077,-0.1308], image:null,
+    desc:"『アビイ荘園』で、ホームズとワトスンが訪ねた汽船会社の事務所。ここでの調べが、船長ジャック・クロッカーの人柄を知る手がかりとなる。",
+    related:["abbey-grange-work","holmes","watson"]},
+  "warrens-boarding-house": {type:"place", name:"ウォレン夫人の下宿（グレート・オーム街）", coords:[51.5227,-0.1177], image:null,
+    desc:"『赤い輪』の舞台。下宿屋を営むウォレン夫人が、新しい間借り人の奇妙な行動について相談に訪れる。",
+    related:["red-circle-work","holmes","watson"]},
+  "aldgate-tube-station": {type:"place", name:"オールドゲイト地下鉄駅", coords:[51.5145,-0.0759], image:null,
+    desc:"『ブルース・パーティントン設計書』で、被害者アーサー・カドガン・ウェストの遺体が線路脇で発見された駅。国防に関わる潜水艦設計書の盗難事件の発端となる。",
+    related:["bruce-partington-plans-work","holmes","watson"]},
+  "brixton-workhouse-infirmary": {type:"place", name:"ブリクストン救貧院付属病院", coords:[51.4629,-0.1205], image:null,
+    desc:"『フランシス・カーファックス姫の失踪』で、ホームズとワトスンの捜索中に、身元不明の遺体がここから運び出されていたことが分かる。",
+    related:["lady-frances-carfax-work","holmes","watson"]},
+  "van-seddars-lime-street": {type:"place", name:"ヴァン・セダーの潜伏先（ライム街）", coords:[51.5122,-0.0832], image:null,
+    desc:"『マザリンの宝石』に登場する、盗まれた王冠の宝石を国外へ持ち出す運び役ヴァン・セダーに関わる場所。",
+    related:["mazarin-stone-work","holmes"]},
+  "doraks-general-store": {type:"place", name:"ドラクの雑貨店（コマーシャル・ロード）", coords:[51.5189,-0.0745], image:null,
+    desc:"『這う男』で、プレスベリー教授宛てに奇妙な小包が送られてきた先とされる店。",
+    related:["creeping-man-work","holmes"]},
+  "south-brixton": {type:"place", name:"サウス・ブリクストン", coords:[51.458,-0.1188], image:null,
+    desc:"『ベールをかぶった下宿人』の依頼人メリロウ夫人が暮らしていたとされる、当時は中流階級の住宅地として知られた地区。",
+    related:["veiled-lodger-work","holmes","watson"]},
+  "curzon-street": {type:"place", name:"カーゾン街", coords:[51.5067,-0.1477], image:null,
+    desc:"『ショスコム荘』で、荘園の主サー・ロバート・ノーバートンが、高利貸しサム・ブリューワーを鞭打ったとされる通り。",
+    related:["shoscombe-old-place-work","holmes","watson"]},
+};
+const TYPE_LABEL = {place:"地名", person:"人物", work:"作品", term:"用語"};
+function entityLabel(e){
+  if(e.type==='work') return e.canon ? '正典' : '正典外';
+  return TYPE_LABEL[e.type];
+}
+function entityClass(e){
+  if(e.type==='work') return e.canon ? 'work' : 'pastiche';
+  return e.type;
+}
+const NEW_ENTITY_TYPES = ["place","person","work","term"];
+
+// ---------- 永続ストレージ（すべて自分専用＝shared:false） ----------
+let overrides = {};   // { entityId: {name?, desc?, image?, coords?, extraRelated?:[]} }
+let additions = {};   // { newId: {type,name,desc,image,coords,related:[]} }
+let personalNotes = {}; // { entityId: {rating, visitedDate, ownedEdition, notes} }
+let journal = [];     // [{id, entityId, placeName, coords, rating, comment, image, visitedDate, createdAt}]
+let customAliases = {}; // { 正規化されたカタカナキー: "英語表記" } — サイト上で追加できる地名対応辞書
+
+async function safeGet(key){
+  try{
+    const { data, error } = await supabaseClient.from('atlas_data').select('value').eq('key', key).maybeSingle();
+    if(error || !data) return null;
+    return data.value;
+  }catch(e){ return null; }
+}
+async function safeSet(key, value){
+  try{
+    const { error } = await supabaseClient.from('atlas_data').upsert({ key, value, updated_at: new Date().toISOString() });
+    if(error){ console.error(error); showToast('保存に失敗しました。'); return false; }
+    return true;
+  }catch(e){ console.error(e); showToast('保存に失敗しました。'); return false; }
+}
+async function loadAll(){
+  const [ov, add, notes, jour, aliases] = await Promise.all([
+    safeGet('p-overrides'), safeGet('p-additions'), safeGet('p-notes'), safeGet('p-journal'), safeGet('p-aliases')
+  ]);
+  overrides = ov || {};
+  additions = add || {};
+  personalNotes = notes || {};
+  journal = jour || [];
+  customAliases = aliases || {};
+}
+
+function buildData(){
+  const data = {};
+  Object.keys(SEED).forEach(id=>{
+    const base = SEED[id], ov = overrides[id] || {};
+    if(ov.deleted) return;
+    data[id] = {
+      type: base.type, name: ov.name || base.name, coords: ov.coords || base.coords || null,
+      desc: ov.desc || base.desc, image: ov.image || base.image || null,
+      photos: [...((base.photos || (base.photoOld||base.photoNow ? [base.photoOld,base.photoNow].filter(Boolean) : [])) || []), ...(ov.extraPhotos||[])],
+      canon: ov.canon !== undefined ? ov.canon : base.canon,
+      relevance: ov.relevance || base.relevance || 'core',
+      related: Array.from(new Set([...(base.related||[]), ...(ov.extraRelated||[])]))
+    };
+  });
+  Object.keys(additions).forEach(id=>{
+    const a = additions[id], ov = overrides[id] || {};
+    data[id] = {
+      type: a.type, name: ov.name || a.name, coords: ov.coords || a.coords || null,
+      desc: ov.desc || a.desc, image: ov.image || a.image || null,
+      photos: [...((a.photos || (a.photoOld||a.photoNow ? [a.photoOld,a.photoNow].filter(Boolean) : [])) || []), ...(ov.extraPhotos||[])],
+      canon: ov.canon !== undefined ? ov.canon : (a.canon !== undefined ? a.canon : true),
+      relevance: ov.relevance || a.relevance || 'core',
+      related: Array.from(new Set([...(a.related||[]), ...(ov.extraRelated||[])]))
+    };
+  });
+  return data;
+}
+let DATA = {};
+
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- 説明文中の [[リンク]] 記法 ----------
+function findLinkCandidates(token){
+  if(DATA[token]) return [token]; // 明示的なID指定（曖昧さ解消済み）
+  const exactMatches = Object.keys(DATA).filter(id=>DATA[id].name === token);
+  if(exactMatches.length) return exactMatches;
+  return Object.keys(DATA).filter(id=>fuzzyMatch(DATA[id].name, token));
+}
+function parseDescSegments(desc){
+  const regex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+  const segments = [];
+  let lastIndex = 0, m;
+  while((m = regex.exec(desc)) !== null){
+    if(m.index > lastIndex) segments.push({type:'text', content: desc.slice(lastIndex, m.index)});
+    const token = m[1].trim();
+    const candidates = findLinkCandidates(token);
+    const display = m[2] ? m[2].trim() : (candidates.length===1 ? DATA[candidates[0]].name : token);
+    if(candidates.length === 1) segments.push({type:'link', id: candidates[0], display});
+    else if(candidates.length > 1) segments.push({type:'ambiguous', token, display, candidates});
+    else segments.push({type:'text', content: display});
+    lastIndex = regex.lastIndex;
+  }
+  if(lastIndex < desc.length) segments.push({type:'text', content: desc.slice(lastIndex)});
+  return segments;
+}
+let ambiguousLinkRegistry = [];
+function segmentsToHtml(segments){
+  return segments.map(seg=>{
+    if(seg.type==='link') return `<button class="desc-link" data-id="${seg.id}">${escapeHtml(seg.display)}</button>`;
+    if(seg.type==='ambiguous'){
+      const idx = ambiguousLinkRegistry.length;
+      ambiguousLinkRegistry.push(seg);
+      return `<button class="desc-link-ambiguous" data-amb-idx="${idx}" title="候補が複数あります。クリックして選んでください">${escapeHtml(seg.display)}</button>`;
+    }
+    return escapeHtml(seg.content);
+  }).join('');
+}
+function renderDescBody(desc){
+  ambiguousLinkRegistry = [];
+  return segmentsToHtml(parseDescSegments(desc));
+}
+function descVisibleLength(desc){
+  return parseDescSegments(desc).reduce((sum,s)=>sum+(s.type==='link'||s.type==='ambiguous'?s.display.length:s.content.length), 0);
+}
+function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function openDisambiguateModal(entityId, token, candidates, displayText){
+  modalBody.innerHTML = `
+    <h3>どちらにリンクしますか？</h3>
+    <div class="modal-sub">説明文中の「${escapeHtml(token)}」に一致する項目が複数あります。選ぶと、次回から自動的にそちらへリンクされます。</div>
+    <div class="checklist" style="max-height:240px;">
+      ${candidates.map(cid=>`<button type="button" class="geo-result-item" data-cid="${cid}"><span class="dot dot-${entityClass(DATA[cid])}"></span> ${escapeHtml(DATA[cid].name)}　<span class="msi-sub">（${entityLabel(DATA[cid])}）</span></button>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="modal-cancel" id="amb-cancel">キャンセル</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('amb-cancel').addEventListener('click', closeModal);
+  modalBody.querySelectorAll('[data-cid]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      closeModal();
+      await resolveAmbiguousLink(entityId, token, btn.dataset.cid, displayText);
+    });
+  });
+}
+async function resolveAmbiguousLink(entityId, token, chosenId, displayText){
+  const e = DATA[entityId];
+  const pattern = new RegExp('\\[\\[' + escapeRegExp(token) + '(\\|[^\\]]+)?\\]\\]');
+  const newDesc = e.desc.replace(pattern, `[[${chosenId}|${displayText}]]`);
+  overrides[entityId] = overrides[entityId] || {};
+  overrides[entityId].desc = newDesc;
+  await safeSet('p-overrides', overrides);
+  DATA = buildData();
+  showToast('リンク先を確定しました。');
+  showEntity(entityId, {fromTrail:true});
+}
+function fmtDate(ts){ return new Date(ts).toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+// ---------- 画像の拡大表示（ライトボックス） ----------
+const lightboxOverlay = document.getElementById('lightboxOverlay');
+const lightboxImg = document.getElementById('lightboxImg');
+function openLightbox(src){
+  lightboxImg.src = src;
+  lightboxOverlay.classList.add('open');
+}
+function closeLightbox(){
+  lightboxOverlay.classList.remove('open');
+  lightboxImg.src = '';
+}
+document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+lightboxOverlay.addEventListener('click', (ev)=>{ if(ev.target===lightboxOverlay) closeLightbox(); });
+document.addEventListener('click', (ev)=>{
+  const img = ev.target.closest('.photo-block img, .entity-img, .journal-card img');
+  if(img && !ev.target.closest('.photo-del-btn')) openLightbox(img.src);
+});
+function haversineKm(a,b){
+  const toRad = d=>d*Math.PI/180, R=6371;
+  const dLat=toRad(b[0]-a[0]), dLon=toRad(b[1]-a[1]);
+  const lat1=toRad(a[0]), lat2=toRad(b[0]);
+  const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function zoomForCoords(coords, excludeId){
+  let minDist = Infinity;
+  Object.keys(DATA).forEach(oid=>{
+    if(oid===excludeId) return;
+    const o = DATA[oid];
+    if(o.type!=='place' || !o.coords) return;
+    const d = haversineKm(coords, o.coords);
+    if(d<minDist) minDist=d;
+  });
+  if(minDist<=2) return 16;
+  if(minDist<=5) return 14;
+  if(minDist<=20) return 13;
+  return 12;
+}
+function zoomForEntity(id){
+  const e = DATA[id];
+  if(!e || !e.coords) return 12;
+  return zoomForCoords(e.coords, id);
+}
+function isInUK(coords){
+  const [lat,lng] = coords;
+  return lat>=49.5 && lat<=61 && lng>=-8.7 && lng<=2;
+}
+
+function compressImageToBlob(file, maxDim=800, quality=0.72){
+  return new Promise((resolve,reject)=>{
+    if(!file.type.startsWith('image/')){ reject(new Error('not image')); return; }
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error('read failed'));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error('decode failed'));
+      img.onload = ()=>{
+        let w=img.width, h=img.height;
+        if(w>maxDim || h>maxDim){
+          if(w>h){ h=Math.round(h*maxDim/w); w=maxDim; } else { w=Math.round(w*maxDim/h); h=maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        canvas.toBlob(blob=>{
+          if(blob) resolve(blob); else reject(new Error('blob failed'));
+        }, 'image/jpeg', quality);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+const STORAGE_BUCKET = 'atlas-photos';
+async function uploadImageToStorage(file){
+  const blob = await compressImageToBlob(file);
+  const path = `uploads/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+  const { error } = await supabaseClient.storage.from(STORAGE_BUCKET).upload(path, blob, {contentType:'image/jpeg', upsert:false});
+  if(error) throw error;
+  const { data } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+function wireImageUpload(fileInputId, previewId, onResult){
+  const fileInput = document.getElementById(fileInputId);
+  const previewEl = document.getElementById(previewId);
+  fileInput.addEventListener('change', async ()=>{
+    const file = fileInput.files[0];
+    if(!file) return;
+    previewEl.innerHTML = '<div class="hint">画像をアップロード中…</div>';
+    try{
+      const url = await uploadImageToStorage(file);
+      previewEl.innerHTML = `<img src="${url}" alt="">`;
+      onResult(url);
+    }catch(e){
+      console.error(e);
+      previewEl.innerHTML = '<div class="hint">アップロードに失敗しました。Supabase Storageの設定をご確認ください。</div>';
+      onResult(null);
+    }
+  });
+}
+async function geocodeSearchOnce(query, lang){
+  try{
+    if(MAPTILER_KEY.includes('YOUR_MAPTILER')) throw new Error('no key');
+    const langParam = lang ? `&language=${lang}` : '';
+    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}${langParam}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('geocode failed');
+    const data = await res.json();
+    return (data.features||[]).map(f=>{
+      const center = f.center || (f.geometry && f.geometry.coordinates) || [null,null];
+      const lon = center[0], lat = center[1];
+      return {lat, lon, display_name: f.place_name || f.text || query, placeType: f.place_type || []};
+    }).filter(r=>r.lat!==null);
+  }catch(e){ return null; }
+}
+async function nominatimSearchFallback(query){
+  try{
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=ja&q=' + encodeURIComponent(query);
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('failed');
+    const data = await res.json();
+    return data.map(d=>({lat: parseFloat(d.lat), lon: parseFloat(d.lon), display_name: d.display_name, placeType: [d.type, d.class].filter(Boolean)}));
+  }catch(e){ return null; }
+}
+// カタカナ表記が地名データベースに登録されていないケース向けの、独自の対応辞書。
+// 「カタカナ検索で見つからなかった地名」を見つけるたびにここへ追加していく。
+const KATAKANA_PLACE_ALIASES = {
+  "オックスフォードストリート": "Oxford Street, London",
+  "ウーリッジ": "Woolwich, London",
+};
+function normalizeForAlias(s){
+  return s.replace(/[・･\s]/g,'');
+}
+function resolveKatakanaAlias(query){
+  const key = normalizeForAlias(query);
+  const merged = Object.assign({}, KATAKANA_PLACE_ALIASES, customAliases);
+  if(merged[key]) return merged[key];
+  // 前方一致（例：「オックスフォードスト」→「オックスフォードストリート」）
+  let best = null, bestLen = -1;
+  Object.keys(merged).forEach(k=>{
+    if((k.startsWith(key) || key.startsWith(k)) && k.length > bestLen){
+      best = merged[k]; bestLen = k.length;
+    }
+  });
+  if(best) return best;
+  // あいまい一致（多少の文字違いを許容）
+  for(const k of Object.keys(merged)){
+    if(fuzzyMatch(k, query)) return merged[k];
+  }
+  return null;
+}
+async function saveCustomAlias(query, englishName){
+  const key = normalizeForAlias(query);
+  customAliases[key] = englishName;
+  await safeSet('p-aliases', customAliases);
+}
+async function deleteCustomAlias(key){
+  delete customAliases[key];
+  await safeSet('p-aliases', customAliases);
+}
+async function geocodeSearch(query){
+  const alias = resolveKatakanaAlias(query);
+  if(alias){
+    const aliasResults = await geocodeSearchOnce(alias, null);
+    if(aliasResults && aliasResults.length > 0) return aliasResults;
+  }
+  const jaResults = await geocodeSearchOnce(query, 'ja');
+  if(jaResults && jaResults.length > 0) return jaResults;
+  // 日本語優先で見つからなければ、言語指定なし（英語表記優先）で再検索
+  const fallback = await geocodeSearchOnce(query, null);
+  if(fallback && fallback.length > 0) return fallback;
+  // それでも見つからなければ、OpenStreetMap本家の検索エンジンも試す
+  const nominatim = await nominatimSearchFallback(query);
+  if(nominatim && nominatim.length > 0) return nominatim;
+  // 全部が通信失敗なら null、どれかが「0件」なら空配列を返す
+  if(jaResults === null && fallback === null && nominatim === null) return null;
+  return [];
+}
+
+// ---------- 地図 ----------
+const map = L.map('map', {zoomControl:true, scrollWheelZoom:false}).setView([51.5074,-0.1278], 11);
+const mapEl = document.getElementById('map');
+let mapActive = false;
+map.scrollWheelZoom.disable();
+mapEl.addEventListener('click', ()=>{ mapActive=true; map.scrollWheelZoom.enable(); });
+mapEl.addEventListener('mouseleave', ()=>{ mapActive=false; map.scrollWheelZoom.disable(); });
+document.addEventListener('click', (ev)=>{ if(!ev.target.closest('#map')){ mapActive=false; map.scrollWheelZoom.disable(); } });
+
+const mapStatusEl = document.getElementById('mapStatus');
+let tilesLoaded=0, tilesErrored=0;
+const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  subdomains:'abc', maxZoom:19
+}).addTo(map);
+tileLayer.on('tileerror', ()=>{ tilesErrored++; mapStatusEl.textContent='地図タイルを読み込めませんでした'; mapStatusEl.classList.add('show'); });
+tileLayer.on('tileload', ()=>{ tilesLoaded++; if(tilesErrored===0) mapStatusEl.classList.remove('show'); });
+mapStatusEl.classList.add('show');
+setTimeout(()=>{ if(tilesLoaded===0 && tilesErrored===0) mapStatusEl.textContent='地図の読み込みに時間がかかっています…'; }, 4000);
+
+// ---------- 古地図（ホームズ時代）レイヤーの切り替え ----------
+let historicLayer = null;
+let showingHistoric = false;
+function getHistoricLayer(){
+  if(!historicLayer){
+    historicLayer = L.tileLayer(`https://api.maptiler.com/tiles/${MAPTILER_HISTORIC_TILE_ID}/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
+      attribution:'Historic map: National Library of Scotland / MapTiler',
+      maxZoom:18
+    });
+    historicLayer.on('tileerror', ()=>{
+      mapStatusEl.textContent = '古地図タイルを読み込めませんでした（設定をご確認ください）';
+      mapStatusEl.classList.add('show');
+    });
+  }
+  return historicLayer;
+}
+const historicToggleBtn = document.getElementById('historicToggleBtn');
+historicToggleBtn.addEventListener('click', ()=>{
+  if(MAPTILER_KEY.includes('YOUR_MAPTILER') || MAPTILER_HISTORIC_TILE_ID.includes('YOUR_MAPTILER')){
+    showToast('⚠ 古地図を使うにはMapTilerの設定（APIキーとタイルID）が必要です。');
+    return;
+  }
+  showingHistoric = !showingHistoric;
+  if(showingHistoric){
+    map.removeLayer(tileLayer);
+    getHistoricLayer().addTo(map);
+    historicToggleBtn.classList.add('active');
+    historicToggleBtn.textContent = '🗺️ 現在の地図';
+  } else {
+    map.removeLayer(getHistoricLayer());
+    tileLayer.addTo(map);
+    historicToggleBtn.classList.remove('active');
+    historicToggleBtn.textContent = '🗺️ 古地図';
+  }
+});
+
+const coreOnlyBtn = document.getElementById('coreOnlyBtn');
+coreOnlyBtn.addEventListener('click', ()=>{
+  coreOnlyFilter = !coreOnlyFilter;
+  coreOnlyBtn.classList.toggle('active', coreOnlyFilter);
+  coreOnlyBtn.textContent = coreOnlyFilter ? '全て表示' : '核心のみ表示';
+  renderMarkers();
+  renderIndex();
+});
+
+function fixMapSize(){ map.invalidateSize(); }
+window.addEventListener('load', fixMapSize);
+window.addEventListener('resize', fixMapSize);
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(fixMapSize); }
+setTimeout(fixMapSize,150); setTimeout(fixMapSize,600);
+
+function makeIcon(){
+  return L.divIcon({className:'leaflet-holmes-icon',
+    html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/></svg>',
+    iconSize:[26,26], iconAnchor:[13,13]});
+}
+function makePeripheralIcon(){
+  return L.divIcon({className:'leaflet-holmes-icon-peripheral',
+    html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/></svg>',
+    iconSize:[18,18], iconAnchor:[9,9]});
+}
+function makeSpecialIcon(){
+  return L.divIcon({className:'leaflet-holmes-special-icon',
+    html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/></svg>',
+    iconSize:[36,36], iconAnchor:[18,18]});
+}
+function makeJournalIcon(){
+  return L.divIcon({className:'leaflet-journal-icon',
+    html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.3" r="3"/></svg>',
+    iconSize:[24,24], iconAnchor:[12,12]});
+}
+let markers = {};
+let coreOnlyFilter = false;
+
+// ---------- 主要な通り・エリアの日本語ラベル（独自データ、地図タイルには依存しない） ----------
+const MAP_LABELS = [
+  {name:"ベーカー街", coords:[51.5225,-0.1570]},
+  {name:"リージェンツ・パーク", coords:[51.5313,-0.1570]},
+  {name:"ピカデリー・サーカス", coords:[51.5100,-0.1341]},
+  {name:"ピカデリー", coords:[51.5072,-0.1434]},
+  {name:"オックスフォード・ストリート", coords:[51.5152,-0.1447]},
+  {name:"リージェント・ストリート", coords:[51.5100,-0.1401]},
+  {name:"ペル・メル街", coords:[51.5057,-0.1339]},
+  {name:"ホワイトホール", coords:[51.5030,-0.1268]},
+  {name:"ストランド", coords:[51.5113,-0.1200]},
+  {name:"コヴェント・ガーデン", coords:[51.5117,-0.1240]},
+  {name:"トラファルガー広場", coords:[51.5080,-0.1281]},
+  {name:"ハイド・パーク", coords:[51.5073,-0.1657]},
+  {name:"ウェストミンスター", coords:[51.4995,-0.1348]},
+  {name:"セント・ジェームズ・パーク", coords:[51.5027,-0.1347]},
+  {name:"メリルボーン", coords:[51.5185,-0.1540]},
+  {name:"ソーホー", coords:[51.5137,-0.1315]},
+  {name:"フリート・ストリート", coords:[51.5142,-0.1082]},
+  {name:"シティ・オブ・ロンドン", coords:[51.5155,-0.0922]},
+];
+function renderMapLabels(){
+  MAP_LABELS.forEach(l=>{
+    L.tooltip({permanent:true, direction:'center', className:'map-area-label', interactive:false})
+      .setLatLng(l.coords).setContent(l.name).addTo(map);
+  });
+}
+
+const markerClusterGroup = L.markerClusterGroup({
+  maxClusterRadius: 55,
+  disableClusteringAtZoom: 17,
+  spiderfyOnMaxZoom: true,
+  showCoverageOnHover: false,
+  iconCreateFunction: function(cluster){
+    const children = cluster.getAllChildMarkers();
+    const count = children.length;
+    const firstName = (children[0] && children[0].entityName) || '';
+    const labelText = count > 1 ? `${firstName} 他${count-1}件` : firstName;
+    if(!cluster._holmesWired){
+      cluster.bindTooltip(labelText, {direction:'right', offset:[19,0], permanent:true, className:'place-label'});
+      cluster.on('mouseover', ()=>{ cluster.getTooltip()?.getElement()?.classList.add('force-show'); });
+      cluster.on('mouseout', ()=>{ cluster.getTooltip()?.getElement()?.classList.remove('force-show'); });
+      cluster._holmesWired = true;
+    } else {
+      cluster.setTooltipContent(labelText);
+    }
+    return L.divIcon({
+      html: `<div class="cluster-icon-inner">${count}</div>`,
+      className: 'holmes-cluster-icon',
+      iconSize: L.point(34, 34)
+    });
+  }
+}).addTo(map);
+markerClusterGroup.on('spiderfied', (ev)=>{
+  ev.cluster.getTooltip()?.getElement()?.classList.add('spiderfied-hide');
+});
+markerClusterGroup.on('unspiderfied', (ev)=>{
+  ev.cluster.getTooltip()?.getElement()?.classList.remove('spiderfied-hide');
+});
+function labelDirectionFor(id){
+  const dirs = [
+    {direction:'right', offset:[10,0]},
+    {direction:'left', offset:[-10,0]},
+    {direction:'top', offset:[0,-12]},
+    {direction:'bottom', offset:[0,12]}
+  ];
+  let hash = 0;
+  for(let i=0;i<id.length;i++){ hash = (hash*31 + id.charCodeAt(i)) >>> 0; }
+  return dirs[hash % dirs.length];
+}
+function renderMarkers(){
+  markerClusterGroup.clearLayers();
+  Object.values(markers).forEach(m=>{ if(map.hasLayer(m)) map.removeLayer(m); });
+  markers = {};
+  Object.keys(DATA).forEach(id=>{
+    const e = DATA[id];
+    if(e.type==='place' && e.coords){
+      if(coreOnlyFilter && e.relevance==='peripheral') return;
+      const isSpecial = id === 'baker-street';
+      const icon = isSpecial ? makeSpecialIcon() : (e.relevance==='peripheral' ? makePeripheralIcon() : makeIcon());
+      const m = L.marker(e.coords,{icon, zIndexOffset: isSpecial ? 2000 : 0});
+      m.entityName = e.name;
+      m.on('click', ()=>showEntity(id));
+      if(isSpecial){
+        m.bindTooltip(e.name,{direction:'right',offset:[12,0],permanent:true,className:'place-label-special'});
+        m.on('mouseover', ()=>{ m.getTooltip()?.getElement()?.classList.add('force-show'); });
+        m.on('mouseout', ()=>{ m.getTooltip()?.getElement()?.classList.remove('force-show'); });
+      } else if(isInUK(e.coords)){
+        const ld = labelDirectionFor(id);
+        m.bindTooltip(e.name,{direction:ld.direction,offset:ld.offset,permanent:true,className: e.relevance==='peripheral' ? 'place-label place-label-peripheral' : 'place-label'});
+        m.on('mouseover', ()=>{ m.getTooltip()?.getElement()?.classList.add('force-show'); });
+        m.on('mouseout', ()=>{ m.getTooltip()?.getElement()?.classList.remove('force-show'); });
+      }
+      else m.bindTooltip(e.name,{direction:'top',offset:[0,-10]});
+      markers[id]=m;
+      if(isSpecial) m.addTo(map);
+      else markerClusterGroup.addLayer(m);
+    }
+  });
+}
+map.on('zoomend', ()=>{
+  const el = map.getContainer();
+  if(map.getZoom()<14) el.classList.add('hide-place-labels'); else el.classList.remove('hide-place-labels');
+});
+if(map.getZoom()<14) map.getContainer().classList.add('hide-place-labels');
+
+let journalMarkers = [];
+function renderJournalMarkers(){
+  journalMarkers.forEach(m=>map.removeLayer(m));
+  journalMarkers = [];
+  journal.forEach(j=>{
+    if(!j.coords) return;
+    const m = L.marker(j.coords, {icon: makeJournalIcon()}).addTo(map);
+    m.on('click', ()=>openJournalDetail(j.id));
+    m.bindTooltip(j.placeName, {direction:'top', offset:[0,-8]});
+    journalMarkers.push(m);
+  });
+}
+
+// ---------- 索引 ----------
+const EXTERNAL_LINKS = [
+  {name:"日本シャーロック・ホームズ・クラブ（JSHC）", url:"https://www.holmesjapan.jp/", desc:"JSHC公式サイト"},
+  {name:"JSHC月例会ホームページ", url:"https://jshctokyoreikai.cocolog-nifty.com/", desc:"月例会の告知・活動報告"},
+  {name:"日本シャーロック・ホームズクラブ関西支部", url:"https://westholmes.sakura.ne.jp/", desc:"関西支部の公式サイト"},
+  {name:"シャーロック・ホームズの世界", url:"https://shworld.fan.coocan.jp/", desc:"ロンドンの地区別詳細地図で知られる個人サイト"},
+  {name:"Sherlock Holmes Society of London", url:"https://www.sherlock-holmes.org.uk/", desc:"ロンドンのホームズ協会。独自のGazetteer（地名事典）を運営"},
+];
+
+let indexOpenGroups = new Set();
+function renderIndex(){
+  const indexEl = document.getElementById('index');
+  const groups = {place:[],person:[],work:[],'work-pastiche':[],term:[]};
+  Object.keys(DATA).forEach(id=>{
+    const e = DATA[id];
+    if(e.type==='work'){
+      (e.canon ? groups.work : groups['work-pastiche']).push(id);
+    } else if(e.type==='place'){
+      if(!coreOnlyFilter || e.relevance!=='peripheral') groups.place.push(id);
+    } else {
+      groups[e.type].push(id);
+    }
+  });
+  Object.values(groups).forEach(arr=>arr.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja')));
+  const sectionLabels = {place:'地名', person:'人物', work:'作品（正典）', 'work-pastiche':'作品（正典外）', term:'用語', links:'関連サイト'};
+  let html='';
+
+  // お気に入り（ジャンル別）
+  const favOpen = indexOpenGroups.has('favorites');
+  const favByType = {place:[], person:[], work:[], 'work-pastiche':[], term:[]};
+  ['place','person','work','work-pastiche','term'].forEach(t=>{
+    favByType[t] = groups[t].filter(id=>personalNotes[id] && personalNotes[id].favorite);
+  });
+  const favTotal = Object.values(favByType).reduce((a,arr)=>a+arr.length, 0);
+  html += `<div class="index-group">
+    <button class="index-group-header" data-group="favorites"><span class="igh-arrow">${favOpen?'▾':'▸'}</span>★ お気に入り<span class="igh-count">${favTotal}</span></button>
+    <div class="index-group-items" style="display:${favOpen?'block':'none'}">`;
+  if(favTotal===0){
+    html += `<div class="alias-list-empty">まだありません。項目を開いて☆お気に入りボタンで登録できます。</div>`;
+  } else {
+    ['place','person','work','work-pastiche','term'].forEach(t=>{
+      if(favByType[t].length===0) return;
+      html += `<div class="fav-subheader">${sectionLabels[t]}</div>`;
+      favByType[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${DATA[id].name}</button>`; });
+    });
+  }
+  html += `</div></div>`;
+
+  ['place','person','work','work-pastiche','term'].forEach(t=>{
+    if(groups[t].length===0) return;
+    const open = indexOpenGroups.has(t);
+    html += `<div class="index-group">
+      <button class="index-group-header" data-group="${t}"><span class="igh-arrow">${open?'▾':'▸'}</span>${sectionLabels[t]}<span class="igh-count">${groups[t].length}</span></button>
+      <div class="index-group-items" style="display:${open?'block':'none'}">`;
+    groups[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${DATA[id].name}</button>`; });
+    html += `</div></div>`;
+  });
+  // 関連サイト
+  const linksOpen = indexOpenGroups.has('links');
+  html += `<div class="index-group">
+    <button class="index-group-header" data-group="links"><span class="igh-arrow">${linksOpen?'▾':'▸'}</span>${sectionLabels.links}<span class="igh-count">${EXTERNAL_LINKS.length}</span></button>
+    <div class="index-group-items" style="display:${linksOpen?'block':'none'}">`;
+  EXTERNAL_LINKS.forEach(l=>{
+    html += `<a class="index-item index-link-item" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.name)}<span class="index-link-desc">${escapeHtml(l.desc||'')}</span></a>`;
+  });
+  html += `</div></div>`;
+
+  // 地名の言い換え辞書
+  const aliasKeys = Object.keys(customAliases);
+  const aliasOpen = indexOpenGroups.has('aliases');
+  html += `<div class="index-group">
+    <button class="index-group-header" data-group="aliases"><span class="igh-arrow">${aliasOpen?'▾':'▸'}</span>地名の言い換え辞書<span class="igh-count">${aliasKeys.length}</span></button>
+    <div class="index-group-items" style="display:${aliasOpen?'block':'none'}">
+      <button class="alias-add-standalone-btn" id="aliasAddStandaloneBtn">＋ 対応を追加</button>`;
+  if(aliasKeys.length===0){
+    html += `<div class="alias-list-empty">まだありません。</div>`;
+  } else {
+    aliasKeys.forEach(k=>{
+      html += `<div class="alias-list-item"><span>${escapeHtml(k)} → ${escapeHtml(customAliases[k])}</span><button class="alias-delete-btn" data-del-alias="${escapeAttr(k)}">×</button></div>`;
+    });
+  }
+  html += `</div></div>`;
+
+  html += `<div class="site-license">本サイトの説明文は <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a> で公開しています（出典を明記すれば自由にご利用いただけます）。画像は個別に出典・ライセンスを表示しています。</div>`;
+  indexEl.innerHTML = html;
+  indexEl.querySelectorAll('.index-item[data-id]').forEach(btn=>btn.addEventListener('click', ()=>showEntity(btn.dataset.id)));
+  document.getElementById('aliasAddStandaloneBtn')?.addEventListener('click', (ev)=>{ ev.stopPropagation(); openAliasModal(); });
+  indexEl.querySelectorAll('[data-del-alias]').forEach(btn=>{
+    btn.addEventListener('click', async (ev)=>{
+      ev.stopPropagation();
+      if(!confirm('この対応を削除します。よろしいですか？')) return;
+      await deleteCustomAlias(btn.dataset.delAlias);
+      renderIndex();
+      showToast('削除しました。');
+    });
+  });
+  indexEl.querySelectorAll('.index-group-header').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const g = btn.dataset.group;
+      if(indexOpenGroups.has(g)) indexOpenGroups.delete(g); else indexOpenGroups.add(g);
+      renderIndex();
+    });
+  });
+}
+
+// ---------- 詳細パネル ----------
+const panel = document.getElementById('panel');
+const panelContent = document.getElementById('panelContent');
+let trail = [];
+let lastShownPlace = null;
+const pinIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="9" r="2.6"/><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11z"/></svg>';
+
+function renderPhoto(photo, entityId){
+  if(!photo || !photo.url) return '';
+  const creditBits = [];
+  if(photo.credit) creditBits.push(escapeHtml(photo.credit));
+  if(photo.license) creditBits.push(escapeHtml(photo.license));
+  let creditLine = creditBits.join(' ／ ');
+  if(photo.sourceUrl) creditLine += (creditLine?' ':'') + `<a href="${escapeAttr(photo.sourceUrl)}" target="_blank" rel="noopener noreferrer">出典</a>`;
+  const label = photo.year || '';
+  const delBtn = photo.id ? `<button class="photo-del-btn" data-del-photo="${photo.id}" data-photo-entity="${entityId}" title="この写真を削除">×</button>` : '';
+  return `<div class="photo-block">
+    ${delBtn}
+    ${label ? `<div class="photo-label">${escapeHtml(label)}</div>` : ''}
+    <img src="${escapeAttr(photo.url)}" alt="${escapeAttr(photo.caption||label||'')}" loading="lazy">
+    ${creditLine ? `<div class="photo-credit">${creditLine}</div>` : ''}
+  </div>`;
+}
+function renderPhotoGallery(photos, entityId){
+  const list = photos || [];
+  return `<div class="photo-row">${list.map(p=>renderPhoto(p, entityId)).join('')}<button class="add-photo-btn" id="addPhotoBtn">＋<br>写真を<br>追加</button></div>`;
+}
+
+function showEntity(id, opts={}){
+  const e = DATA[id];
+  if(!e) return;
+  document.getElementById('timeline').classList.remove('open');
+  if(!opts.fromTrail){ trail = trail.filter(t=>t!==id); trail.push(id); if(trail.length>6) trail.shift(); }
+  document.querySelectorAll('.index-item').forEach(b=>b.classList.toggle('active', b.dataset.id===id));
+  if(e.type==='place' && e.coords){
+    try{
+      const m0 = markers[id];
+      const zoom = zoomForEntity(id);
+      if(m0 && markerClusterGroup.hasLayer(m0) && !m0._icon){
+        // まだクラスタの中に隠れている場合だけ、展開してから微調整
+        markerClusterGroup.zoomToShowLayer(m0, ()=>{
+          const finalZoom = map.getZoom();
+          flyToAvoidingPanel(e.coords, finalZoom);
+          lastShownPlace = {coords: e.coords, zoom: finalZoom};
+        });
+      } else {
+        // 既に個別ピンとして見えている場合は、そのまま素直に移動
+        flyToAvoidingPanel(e.coords, zoom);
+        lastShownPlace = {coords: e.coords, zoom};
+      }
+    }catch(err){
+      console.error('map centering failed:', err);
+      lastShownPlace = {coords: e.coords, zoom: zoomForEntity(id)};
+    }
+  }
+
+  const trailHtml = trail.map((tid,i)=>{
+    const sep = i>0 ? '<span class="sep">›</span>' : '';
+    const cur = tid===id;
+    return sep + `<button ${cur?'disabled style="opacity:.5;text-decoration:none;cursor:default"':''} data-id="${tid}">${DATA[tid].name}</button>`;
+  }).join('');
+
+  const relatedHtml = (e.related||[]).map(rid=>{
+    const r = DATA[rid]; if(!r) return '';
+    const jump = (r.type==='place' && r.coords) ? `<button class="chip-map-btn" data-goto="${rid}" title="${escapeAttr(r.name)}を地図で見る">${pinIconSvg}</button>` : '';
+    return `<span class="chip-wrap"><button class="chip" data-id="${rid}"><span class="dot dot-${entityClass(r)}"></span>${r.name}</button>${jump}</span>`;
+  }).join('');
+
+  const legacyImgHtml = (!e.photos || !e.photos.length) && e.image ? `<img class="entity-img" src="${escapeAttr(e.image)}" alt="" loading="lazy">` : '';
+  const imgHtml = renderPhotoGallery(e.photos, id) + legacyImgHtml;
+  const gmapsIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>';
+  const mapJumpHtml = (e.type==='place' && e.coords)
+    ? `<button class="map-jump-main-btn" id="mapJumpBtn">${pinIconSvg} 地図で見る</button>
+       <a class="map-jump-main-btn" href="https://www.google.com/maps/search/${encodeURIComponent(e.name)}/@${e.coords[0]},${e.coords[1]},17z" target="_blank" rel="noopener noreferrer">${gmapsIconSvg} Googleマップ（営業時間など）</a>`
+    : '';
+  const noteHtml = renderNoteSection(id);
+  const journalHtml = e.type==='place' ? renderEntityJournalSection(id) : '';
+  const isFav = !!(personalNotes[id] && personalNotes[id].favorite);
+  const favBtnHtml = `<button class="fav-toggle-btn ${isFav?'active':''}" id="favToggleBtn">${isFav?'★':'☆'} お気に入り</button>`;
+  const DESC_LIMIT = 500;
+  const descBodyHtml = renderDescBody(e.desc);
+  const descHtml = descVisibleLength(e.desc) > DESC_LIMIT
+    ? `<p class="entity-desc collapsed" id="entityDescP">${descBodyHtml}</p><button class="desc-toggle-btn" id="descToggleBtn">続きを表示</button>`
+    : `<p class="entity-desc">${descBodyHtml}</p>`;
+
+  panelContent.innerHTML = `
+    <div class="trail">${trailHtml}</div>
+    <div class="panel-body">
+      <span class="type-badge badge-${entityClass(e)}">${entityLabel(e)}</span>${e.relevance==='peripheral' ? ' <span class="type-badge badge-peripheral">周辺情報</span>' : ''}
+      ${favBtnHtml}
+      <h3>${e.name}</h3>
+      ${mapJumpHtml}
+      ${imgHtml}
+      ${descHtml}
+      <div class="related">
+        <h4>関連する項目</h4>
+        <div class="chip-row">${relatedHtml || '<span class="empty-msg">関連項目なし</span>'}</div>
+      </div>
+      <button class="edit-btn" id="editBtn">編集する</button>
+      ${noteHtml}
+      ${journalHtml}
+    </div>`;
+
+  panelContent.querySelectorAll('[data-id]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const tid = el.dataset.id;
+      if(el.closest('.trail')){ trail = trail.slice(0, trail.indexOf(tid)+1); showEntity(tid,{fromTrail:true}); }
+      else showEntity(tid);
+    });
+  });
+  panelContent.querySelectorAll('[data-goto]').forEach(btn=>{
+    btn.addEventListener('click', (ev)=>{ ev.stopPropagation(); goToMap(btn.dataset.goto); });
+  });
+  document.getElementById('mapJumpBtn')?.addEventListener('click', ()=>goToMap(id));
+  document.getElementById('editBtn').addEventListener('click', ()=>openEditModal(id));
+  document.getElementById('descToggleBtn')?.addEventListener('click', (ev)=>{
+    const p = document.getElementById('entityDescP');
+    p.classList.toggle('collapsed');
+    ev.target.textContent = p.classList.contains('collapsed') ? '続きを表示' : '畳む';
+  });
+  panelContent.querySelectorAll('.desc-link').forEach(btn=>{
+    btn.addEventListener('click', ()=>showEntity(btn.dataset.id));
+  });
+  panelContent.querySelectorAll('.desc-link-ambiguous').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const seg = ambiguousLinkRegistry[parseInt(btn.dataset.ambIdx)];
+      openDisambiguateModal(id, seg.token, seg.candidates, seg.display);
+    });
+  });
+  document.getElementById('favToggleBtn')?.addEventListener('click', async ()=>{
+    personalNotes[id] = personalNotes[id] || {};
+    personalNotes[id].favorite = !personalNotes[id].favorite;
+    await safeSet('p-notes', personalNotes);
+    showEntity(id, {fromTrail:true});
+    renderIndex();
+  });
+  document.getElementById('addPhotoBtn')?.addEventListener('click', ()=>openPhotoModal(id));
+  panelContent.querySelectorAll('[data-del-photo]').forEach(btn=>{
+    btn.addEventListener('click', ()=>deletePhoto(btn.dataset.photoEntity, btn.dataset.delPhoto));
+  });
+  wireNoteSection(id);
+  const addJBtn = document.getElementById('addEntityJournalBtn');
+  if(addJBtn) addJBtn.addEventListener('click', ()=>openJournalModal({entityId:id, name:e.name, lat: e.coords?e.coords[0]:null, lng: e.coords?e.coords[1]:null}));
+  panel.classList.add('open');
+}
+document.getElementById('panelClose').addEventListener('click', ()=>{
+  panel.classList.remove('open');
+  if(lastShownPlace){
+    map.flyTo(lastShownPlace.coords, lastShownPlace.zoom, {duration:0.6});
+    lastShownPlace = null;
+  }
+});
+
+function flyToAvoidingPanel(latlng, zoom){
+  const panelWidth = panel.offsetWidth;
+  const targetPoint = map.project(latlng, zoom);
+  const shiftedPoint = targetPoint.add(L.point(panelWidth/2, 0));
+  const shiftedLatLng = map.unproject(shiftedPoint, zoom);
+  map.flyTo(shiftedLatLng, zoom, {duration:0.7});
+}
+function goToMap(id){
+  const e = DATA[id];
+  if(!e || !e.coords) return;
+  panel.classList.remove('open');
+  document.getElementById('timeline').classList.remove('open');
+  const m = markers[id];
+  if(m && markerClusterGroup.hasLayer(m)){
+    markerClusterGroup.zoomToShowLayer(m, ()=>{ m.openTooltip(); });
+  } else if(m){
+    map.flyTo(e.coords, zoomForEntity(id), {duration:0.7});
+    m.openTooltip();
+  } else {
+    map.flyTo(e.coords, zoomForEntity(id), {duration:0.7});
+  }
+}
+
+// ---------- 個人メモ（★評価・訪問日・所有版・自由記述） ----------
+function renderNoteSection(id){
+  const n = personalNotes[id] || {};
+  const rating = n.rating || 0;
+  const stars = [1,2,3,4,5].map(i=>`<button type="button" class="star-btn ${i<=rating?'filled':''}" data-star="${i}">★</button>`).join('');
+  return `
+    <div class="note-section">
+      <h4>個人メモ</h4>
+      <div class="stars" id="noteStars">${stars}</div>
+      <div class="note-field"><label>訪問日・読了日</label><input type="date" id="noteDate" value="${n.visitedDate||''}"></div>
+      <div class="note-field"><label>所有版・関連メモ（任意）</label><input type="text" id="noteEdition" value="${n.ownedEdition?escapeAttr(n.ownedEdition):''}" placeholder="例：光文社文庫版、2019年訪問"></div>
+      <div class="note-field"><label>自由記述</label><textarea id="noteText" placeholder="自分用のメモを自由に">${n.notes?escapeHtml(n.notes):''}</textarea></div>
+      <button class="note-save-btn" id="noteSaveBtn">メモを保存</button>
+    </div>`;
+}
+function wireNoteSection(id){
+  let currentRating = (personalNotes[id]||{}).rating || 0;
+  const starsEl = document.getElementById('noteStars');
+  starsEl.querySelectorAll('.star-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const v = parseInt(btn.dataset.star);
+      currentRating = (currentRating===v) ? 0 : v;
+      starsEl.querySelectorAll('.star-btn').forEach(b=>b.classList.toggle('filled', parseInt(b.dataset.star)<=currentRating));
+    });
+  });
+  document.getElementById('noteSaveBtn').addEventListener('click', async ()=>{
+    personalNotes[id] = {
+      rating: currentRating,
+      visitedDate: document.getElementById('noteDate').value,
+      ownedEdition: document.getElementById('noteEdition').value.trim(),
+      notes: document.getElementById('noteText').value.trim()
+    };
+    await safeSet('p-notes', personalNotes);
+    showToast('メモを保存しました。');
+  });
+}
+
+// ---------- モーダル：新規項目 / 編集 ----------
+const overlay = document.getElementById('modalOverlay');
+const modalBody = document.getElementById('modalBody');
+function closeModal(){ overlay.classList.remove('open'); modalBody.innerHTML=''; }
+overlay.addEventListener('click', ev=>{ if(ev.target===overlay) closeModal(); });
+
+function relatedChecklist(excludeId, preselected=[]){
+  const ids = Object.keys(DATA).filter(id=>id!==excludeId).sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
+  return ids.map(id=>`<label><input type="checkbox" value="${id}" ${preselected.includes(id)?'checked':''}> <span class="dot dot-${entityClass(DATA[id])}"></span>${DATA[id].name}</label>`).join('');
+}
+
+function openEntityModal(prefill){
+  prefill = (prefill && typeof prefill.lat==='number') ? prefill : null;
+  let uploadedImageData = null;
+  modalBody.innerHTML = `
+    <h3>新しい項目を追加</h3>
+    <div class="modal-sub">その場で即反映されます（審査なし）。</div>
+    <div class="field"><label>種別</label><select id="f-type">${NEW_ENTITY_TYPES.map(t=>`<option value="${t}">${TYPE_LABEL[t]}</option>`).join('')}</select></div>
+    <div class="field"><label>名称</label><input type="text" id="f-name" value="${prefill?escapeAttr(prefill.name):''}"></div>
+    <div class="field" id="f-location-field" style="display:none;">
+      <label>場所を検索して座標を設定</label>
+      <div class="geo-row"><input type="text" id="f-geo-query" placeholder="地名で検索"><button type="button" class="geo-search-btn" id="f-geo-search">検索</button></div>
+      <div class="geo-results" id="f-geo-results"></div>
+      <div class="latlng-row"><input type="text" id="f-lat" placeholder="緯度" value="${prefill?prefill.lat.toFixed(4):''}"><input type="text" id="f-lng" placeholder="経度" value="${prefill?prefill.lng.toFixed(4):''}"></div>
+      <div class="hint">関連度</div>
+      <select id="f-relevance">
+        <option value="core">核心（正典・パスティーシュに直結する場所）</option>
+        <option value="peripheral">周辺情報（伝記的・ファン向けなど）</option>
+      </select>
+    </div>
+    <div class="field" id="f-canon-field" style="display:none;">
+      <label>正典 / 正典外</label>
+      <select id="f-canon"><option value="true">正典（コナン・ドイルの原作）</option><option value="false">正典外（パスティーシュ・映像化・翻案など）</option></select>
+    </div>
+    <div class="field"><label>説明文</label><textarea id="f-desc"></textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります（表示を変えたい場合は <code>[[holmes|彼]]</code> のように｜で区切って指定）。</div></div>
+    <div class="field"><label>画像（任意）</label>
+      <input type="file" class="file-input" id="f-image-file" accept="image/*">
+      <input type="text" id="f-image" placeholder="https://..." style="margin-top:6px;">
+      <div class="image-preview" id="f-image-preview"></div>
+    </div>
+    <div class="field"><label>関連付ける項目（任意）</label><div class="checklist">${relatedChecklist(null)}</div></div>
+    <div class="modal-actions"><button class="modal-cancel" id="f-cancel">キャンセル</button><button class="modal-submit" id="f-submit">追加する</button></div>`;
+  overlay.classList.add('open');
+  const typeSelect = document.getElementById('f-type');
+  const locField = document.getElementById('f-location-field');
+  const canonField = document.getElementById('f-canon-field');
+  function sync(){
+    locField.style.display = typeSelect.value==='place' ? 'block':'none';
+    canonField.style.display = typeSelect.value==='work' ? 'block':'none';
+  }
+  typeSelect.addEventListener('change', sync);
+  if(prefill) typeSelect.value='place';
+  sync();
+  wireImageUpload('f-image-file','f-image-preview', d=>uploadedImageData=d);
+  document.getElementById('f-geo-search').addEventListener('click', async ()=>{
+    const q = document.getElementById('f-geo-query').value.trim();
+    if(!q){ showToast('地名を入力してください。'); return; }
+    const rEl = document.getElementById('f-geo-results');
+    rEl.innerHTML = '<div class="hint">検索中…</div>';
+    const results = await geocodeSearch(q);
+    if(!results || results.length===0){ rEl.innerHTML='<div class="hint">見つかりませんでした。</div>'; return; }
+    rEl.innerHTML = results.map(r=>`<button type="button" class="geo-result-item" data-lat="${r.lat}" data-lon="${r.lon}">${escapeHtml(r.display_name)}</button>`).join('');
+    rEl.querySelectorAll('.geo-result-item').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        rEl.querySelectorAll('.geo-result-item').forEach(b=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+        document.getElementById('f-lat').value = parseFloat(btn.dataset.lat).toFixed(4);
+        document.getElementById('f-lng').value = parseFloat(btn.dataset.lon).toFixed(4);
+      });
+    });
+  });
+  document.getElementById('f-cancel').addEventListener('click', closeModal);
+  document.getElementById('f-submit').addEventListener('click', async ()=>{
+    const name = document.getElementById('f-name').value.trim();
+    const desc = document.getElementById('f-desc').value.trim();
+    if(!name || !desc){ showToast('名称と説明文は必須です。'); return; }
+    const type = typeSelect.value;
+    let coords = null;
+    let relevance = 'core';
+    if(type==='place'){
+      const lat = parseFloat(document.getElementById('f-lat').value), lng = parseFloat(document.getElementById('f-lng').value);
+      if(!isNaN(lat) && !isNaN(lng)) coords=[lat,lng];
+      relevance = document.getElementById('f-relevance').value;
+    }
+    const related = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
+    const canon = type==='work' ? (document.getElementById('f-canon').value === 'true') : undefined;
+    const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    additions[newId] = {type, name, desc, image: uploadedImageData || document.getElementById('f-image').value.trim() || null, coords, canon, relevance, related};
+    await safeSet('p-additions', additions);
+    related.forEach(relId=>{
+      overrides[relId] = overrides[relId] || {};
+      const extra = new Set(overrides[relId].extraRelated||[]);
+      extra.add(newId);
+      overrides[relId].extraRelated = Array.from(extra);
+    });
+    await safeSet('p-overrides', overrides);
+    DATA = buildData(); renderMarkers(); renderIndex();
+    closeModal(); showToast('追加しました。');
+    showEntity(newId);
+  });
+}
+document.getElementById('addEntityBtn').addEventListener('click', ()=>openEntityModal());
+
+function openEditModal(targetId){
+  const e = DATA[targetId];
+  let uploadedImageData = null;
+  modalBody.innerHTML = `
+    <h3>編集する — ${e.name}</h3>
+    <div class="modal-sub">保存するとその場で反映されます。</div>
+    <div class="field"><label>名称</label><input type="text" id="f-name" value="${escapeAttr(e.name)}"></div>
+    <div class="field"><label>新しい説明文</label><textarea id="f-desc">${escapeHtml(e.desc)}</textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります。</div></div>
+    <div class="field"><label>画像（任意）</label>
+      <input type="file" class="file-input" id="f-image-file" accept="image/*">
+      <input type="text" id="f-image" value="${e.image && !e.image.startsWith('data:') ? escapeAttr(e.image):''}" placeholder="https://...">
+      <div class="image-preview" id="f-image-preview">${e.image?`<img src="${escapeAttr(e.image)}" alt="">`:''}</div>
+    </div>
+    ${e.type==='place' ? `
+    <div class="field">
+      <label>座標を修正する（任意）</label>
+      <div class="geo-row"><input type="text" id="f-geo-query" placeholder="場所名で再検索"><button type="button" class="geo-search-btn" id="f-geo-search">検索</button></div>
+      <div class="geo-results" id="f-geo-results"></div>
+      <div class="latlng-row"><input type="text" id="f-lat" value="${e.coords?e.coords[0]:''}"><input type="text" id="f-lng" value="${e.coords?e.coords[1]:''}"></div>
+    </div>
+    <div class="field">
+      <label>関連度</label>
+      <select id="f-relevance">
+        <option value="core" ${e.relevance!=='peripheral'?'selected':''}>核心（正典・パスティーシュに直結する場所）</option>
+        <option value="peripheral" ${e.relevance==='peripheral'?'selected':''}>周辺情報（伝記的・ファン向けなど）</option>
+      </select>
+      <div class="hint">地図上のピンの大きさ・色や「核心のみ表示」フィルターに反映されます。</div>
+    </div>` : ''}
+    <div class="field"><label>関連付ける項目</label><div class="checklist">${relatedChecklist(targetId, e.related||[])}</div></div>
+    <div class="modal-actions"><button class="modal-cancel" id="f-cancel">キャンセル</button><button class="modal-submit" id="f-submit">保存する</button></div>
+    <div class="danger-zone">
+      <button class="danger-delete-btn" id="f-delete-open">この項目を削除する</button>
+    </div>`;
+  overlay.classList.add('open');
+  wireImageUpload('f-image-file','f-image-preview', d=>uploadedImageData=d);
+  if(e.type==='place'){
+    document.getElementById('f-geo-search').addEventListener('click', async ()=>{
+      const q = document.getElementById('f-geo-query').value.trim();
+      if(!q) return;
+      const rEl = document.getElementById('f-geo-results');
+      rEl.innerHTML = '<div class="hint">検索中…</div>';
+      const results = await geocodeSearch(q);
+      if(!results || results.length===0){ rEl.innerHTML='<div class="hint">見つかりませんでした。</div>'; return; }
+      rEl.innerHTML = results.map(r=>`<button type="button" class="geo-result-item" data-lat="${r.lat}" data-lon="${r.lon}">${escapeHtml(r.display_name)}</button>`).join('');
+      rEl.querySelectorAll('.geo-result-item').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          rEl.querySelectorAll('.geo-result-item').forEach(b=>b.classList.remove('selected'));
+          btn.classList.add('selected');
+          document.getElementById('f-lat').value = parseFloat(btn.dataset.lat).toFixed(4);
+          document.getElementById('f-lng').value = parseFloat(btn.dataset.lon).toFixed(4);
+        });
+      });
+    });
+  }
+  document.getElementById('f-cancel').addEventListener('click', closeModal);
+  document.getElementById('f-delete-open').addEventListener('click', ()=>openDeleteConfirmModal(targetId, e.name));
+  document.getElementById('f-submit').addEventListener('click', async ()=>{
+    const name = document.getElementById('f-name').value.trim();
+    const desc = document.getElementById('f-desc').value.trim();
+    if(!name || !desc){ showToast('名称と説明文は必須です。'); return; }
+    overrides[targetId] = overrides[targetId] || {};
+    overrides[targetId].name = name;
+    overrides[targetId].desc = desc;
+    const img = uploadedImageData || document.getElementById('f-image').value.trim();
+    if(img) overrides[targetId].image = img;
+    if(e.type==='place'){
+      const lat = parseFloat(document.getElementById('f-lat').value), lng = parseFloat(document.getElementById('f-lng').value);
+      if(!isNaN(lat) && !isNaN(lng)) overrides[targetId].coords = [lat,lng];
+      overrides[targetId].relevance = document.getElementById('f-relevance').value;
+    }
+    const related = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
+    overrides[targetId].extraRelated = related;
+    await safeSet('p-overrides', overrides);
+    DATA = buildData(); renderMarkers(); renderIndex();
+    closeModal(); showToast('保存しました。');
+    showEntity(targetId, {fromTrail:true});
+  });
+}
+
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], {type: mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function csvEscape(v){
+  if(v===null || v===undefined) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function exportAsJSON(){
+  const out = {};
+  Object.keys(DATA).forEach(id=>{ out[id] = {id, ...DATA[id]}; });
+  downloadFile('holmes-atlas-data.json', JSON.stringify(out, null, 2), 'application/json');
+}
+function exportAsCSV(){
+  const headers = ['id','type','name','desc','lat','lng','canon_or_pastiche','relevance','related'];
+  const rows = [headers.join(',')];
+  Object.keys(DATA).forEach(id=>{
+    const e = DATA[id];
+    const row = [
+      id, e.type, e.name, e.desc,
+      e.coords ? e.coords[0] : '', e.coords ? e.coords[1] : '',
+      e.type==='work' ? (e.canon ? '正典' : '正典外') : '',
+      e.type==='place' ? (e.relevance || 'core') : '',
+      (e.related||[]).join(';')
+    ].map(csvEscape);
+    rows.push(row.join(','));
+  });
+  downloadFile('holmes-atlas-data.csv', '\uFEFF' + rows.join('\r\n'), 'text/csv;charset=utf-8;');
+}
+function openExportModal(){
+  modalBody.innerHTML = `
+    <h3>データをエクスポート</h3>
+    <div class="modal-sub">現在表示されている全項目（地名・人物・作品・用語）をダウンロードします。研究などにご自由にお使いください。説明文は CC BY 4.0（表示のみ条件）で公開しています。</div>
+    <div class="modal-actions" style="justify-content:flex-start;flex-wrap:wrap;">
+      <button class="modal-submit" id="export-json-btn">JSON形式でダウンロード</button>
+      <button class="modal-submit" id="export-csv-btn">CSV形式でダウンロード</button>
+      <button class="modal-cancel" id="export-cancel">閉じる</button>
+    </div>`;
+  overlay.classList.add('open');
+  document.getElementById('export-cancel').addEventListener('click', closeModal);
+  document.getElementById('export-json-btn').addEventListener('click', ()=>{ exportAsJSON(); closeModal(); showToast('JSONファイルをダウンロードしました。'); });
+  document.getElementById('export-csv-btn').addEventListener('click', ()=>{ exportAsCSV(); closeModal(); showToast('CSVファイルをダウンロードしました。'); });
+}
+document.getElementById('exportBtn').addEventListener('click', openExportModal);
+
+function openDeleteConfirmModal(targetId, entityName){
+  modalBody.innerHTML = `
+    <h3 style="color:var(--burgundy);">項目を削除しますか？</h3>
+    <div class="modal-sub">この操作は元に戻せません。本当に削除する場合は、下の欄に項目名を正確に入力してください。</div>
+    <div class="field">
+      <label>削除する項目：<strong>${escapeHtml(entityName)}</strong></label>
+      <input type="text" id="delete-confirm-input" placeholder="ここに項目名を入力">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="delete-cancel">キャンセル</button>
+      <button class="danger-delete-btn" id="delete-confirm-btn" disabled>削除する</button>
+    </div>`;
+  overlay.classList.add('open');
+  const input = document.getElementById('delete-confirm-input');
+  const confirmBtn = document.getElementById('delete-confirm-btn');
+  input.addEventListener('input', ()=>{
+    confirmBtn.disabled = input.value.trim() !== entityName;
+  });
+  document.getElementById('delete-cancel').addEventListener('click', closeModal);
+  confirmBtn.addEventListener('click', async ()=>{
+    if(input.value.trim() !== entityName) return;
+    await deleteEntity(targetId);
+    closeModal();
+  });
+}
+async function deleteEntity(targetId){
+  if(additions[targetId]){
+    delete additions[targetId];
+    await safeSet('p-additions', additions);
+  } else {
+    overrides[targetId] = overrides[targetId] || {};
+    overrides[targetId].deleted = true;
+    await safeSet('p-overrides', overrides);
+  }
+  delete personalNotes[targetId];
+  await safeSet('p-notes', personalNotes);
+  DATA = buildData();
+  renderMarkers(); renderIndex();
+  panel.classList.remove('open');
+  showToast('項目を削除しました。');
+}
+
+function openAliasModal(){
+  modalBody.innerHTML = `
+    <h3>地名の言い換えを登録</h3>
+    <div class="modal-sub">検索するとき自動で変換される、カタカナ→英語の対応を追加します。</div>
+    <div class="field"><label>カタカナ表記（検索時に打ち込む文字）</label><input type="text" id="alias-ja" placeholder="例：ウーリッジ"></div>
+    <div class="field"><label>英語表記</label><input type="text" id="alias-en" placeholder="例：Woolwich, London"></div>
+    <div class="modal-actions"><button class="modal-cancel" id="alias-cancel">キャンセル</button><button class="modal-submit" id="alias-submit">登録する</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('alias-cancel').addEventListener('click', closeModal);
+  document.getElementById('alias-submit').addEventListener('click', async ()=>{
+    const ja = document.getElementById('alias-ja').value.trim();
+    const en = document.getElementById('alias-en').value.trim();
+    if(!ja || !en){ showToast('両方の欄を入力してください。'); return; }
+    await saveCustomAlias(ja, en);
+    closeModal(); showToast('辞書に登録しました。');
+    renderIndex();
+  });
+}
+
+function openPhotoModal(entityId){
+  const e = DATA[entityId];
+  let uploadedImageData = null;
+  modalBody.innerHTML = `
+    <h3>写真を追加 — ${e.name}</h3>
+    <div class="modal-sub">その場でギャラリーに追加されます。Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。</div>
+    <div class="field"><label>画像</label>
+      <input type="file" class="file-input" id="ph-image-file" accept="image/*">
+      <div class="hint">アップロードすると自動で縮小・圧縮されます。もしくは外部URLを指定してください。</div>
+      <input type="text" id="ph-url" placeholder="https://..." style="margin-top:6px;">
+      <div class="image-preview" id="ph-image-preview"></div>
+    </div>
+    <div class="field"><label>年代（任意）</label><input type="text" id="ph-year" placeholder="例：1890年頃、2024年"></div>
+    <div class="field"><label>作者・提供元（任意）</label><input type="text" id="ph-credit" placeholder="例：Wellcome Collection"></div>
+    <div class="field"><label>ライセンス（任意）</label><input type="text" id="ph-license" placeholder="例：CC BY-SA 4.0、Public Domain"></div>
+    <div class="field"><label>出典URL（任意）</label><input type="text" id="ph-source" placeholder="https://commons.wikimedia.org/..."></div>
+    <div class="modal-actions"><button class="modal-cancel" id="ph-cancel">キャンセル</button><button class="modal-submit" id="ph-submit">追加する</button></div>`;
+  overlay.classList.add('open');
+  wireImageUpload('ph-image-file','ph-image-preview', d=>uploadedImageData=d);
+  document.getElementById('ph-cancel').addEventListener('click', closeModal);
+  document.getElementById('ph-submit').addEventListener('click', async ()=>{
+    const url = uploadedImageData || document.getElementById('ph-url').value.trim();
+    if(!url){ showToast('画像をアップロードするかURLを入力してください。'); return; }
+    const photo = {
+      id: 'ph-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      url,
+      year: document.getElementById('ph-year').value.trim(),
+      credit: document.getElementById('ph-credit').value.trim(),
+      license: document.getElementById('ph-license').value.trim(),
+      sourceUrl: document.getElementById('ph-source').value.trim()
+    };
+    overrides[entityId] = overrides[entityId] || {};
+    overrides[entityId].extraPhotos = overrides[entityId].extraPhotos || [];
+    overrides[entityId].extraPhotos.push(photo);
+    await safeSet('p-overrides', overrides);
+    DATA = buildData();
+    closeModal(); showToast('写真を追加しました。');
+    showEntity(entityId, {fromTrail:true});
+  });
+}
+
+async function deletePhoto(entityId, photoId){
+  if(!confirm('この写真を削除します。よろしいですか？')) return;
+  overrides[entityId] = overrides[entityId] || {};
+  overrides[entityId].extraPhotos = (overrides[entityId].extraPhotos || []).filter(p=>p.id!==photoId);
+  await safeSet('p-overrides', overrides);
+  DATA = buildData();
+  showToast('削除しました。');
+  showEntity(entityId, {fromTrail:true});
+}
+function renderEntityJournalSection(entityId){
+  const list = journal.filter(j=>j.entityId===entityId).slice().sort((a,b)=>b.createdAt-a.createdAt);
+  const html = list.length ? list.map(j=>renderJournalCard(j)).join('') : '<p class="empty-msg">まだ記録はありません。</p>';
+  return `
+    <div class="journal-section">
+      <div class="journal-section-head"><h4>訪問記録（${list.length}件）</h4><button class="add-journal-btn" id="addEntityJournalBtn">＋ 追加</button></div>
+      ${html}
+    </div>`;
+}
+function renderJournalCard(j){
+  const stars = j.rating ? '★'.repeat(j.rating) + '☆'.repeat(5-j.rating) : '';
+  return `
+    <div class="journal-card">
+      ${j.image ? `<img src="${escapeAttr(j.image)}" alt="">` : ''}
+      ${stars ? `<div class="jc-stars">${stars}</div>` : ''}
+      <p class="jc-comment">${escapeHtml(j.comment)}</p>
+      <div class="jc-meta">${j.visitedDate?('訪問日: '+escapeHtml(j.visitedDate)+' ／ '):''}記録日: ${fmtDate(j.createdAt)}</div>
+      <div class="jc-actions"><button class="jc-delete-btn" data-del-journal="${j.id}">削除</button></div>
+    </div>`;
+}
+
+function openJournalModal(prefill){
+  prefill = prefill || {};
+  let coords = (typeof prefill.lat==='number') ? [prefill.lat, prefill.lng] : null;
+  let uploadedImageData = null;
+  modalBody.innerHTML = `
+    <h3>訪問記録を追加</h3>
+    <div class="modal-sub">その場で保存されます。</div>
+    <div class="field"><label>場所の名前</label><input type="text" id="j-name" value="${prefill.name?escapeAttr(prefill.name):''}" ${prefill.entityId?'readonly':''}></div>
+    ${!prefill.entityId ? `
+    <div class="field">
+      <label>位置を検索する（任意）</label>
+      <div class="geo-row"><input type="text" id="j-geo-query" placeholder="地名で検索"><button type="button" class="geo-search-btn" id="j-geo-search">検索</button></div>
+      <div class="geo-results" id="j-geo-results"></div>
+    </div>` : ''}
+    <div class="field"><label>評価</label><div class="stars" id="jStars">${[1,2,3,4,5].map(i=>`<button type="button" class="star-btn" data-star="${i}">★</button>`).join('')}</div></div>
+    <div class="field"><label>訪問日（任意）</label><input type="date" id="j-date"></div>
+    <div class="field"><label>コメント</label><textarea id="j-comment" placeholder="感想や発見したことなど"></textarea></div>
+    <div class="field"><label>写真（任意）</label>
+      <input type="file" class="file-input" id="j-image-file" accept="image/*">
+      <input type="text" id="j-image" placeholder="https://..." style="margin-top:6px;">
+      <div class="image-preview" id="j-image-preview"></div>
+    </div>
+    <div class="modal-actions"><button class="modal-cancel" id="j-cancel">キャンセル</button><button class="modal-submit" id="j-submit">保存する</button></div>`;
+  overlay.classList.add('open');
+  wireImageUpload('j-image-file','j-image-preview', d=>uploadedImageData=d);
+  let currentRating = 0;
+  const starsEl = document.getElementById('jStars');
+  starsEl.querySelectorAll('.star-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      currentRating = (currentRating===parseInt(btn.dataset.star)) ? 0 : parseInt(btn.dataset.star);
+      starsEl.querySelectorAll('.star-btn').forEach(b=>b.classList.toggle('filled', parseInt(b.dataset.star)<=currentRating));
+    });
+  });
+  if(!prefill.entityId){
+    document.getElementById('j-geo-search').addEventListener('click', async ()=>{
+      const q = document.getElementById('j-geo-query').value.trim();
+      if(!q) return;
+      const rEl = document.getElementById('j-geo-results');
+      rEl.innerHTML = '<div class="hint">検索中…</div>';
+      const results = await geocodeSearch(q);
+      if(!results || results.length===0){ rEl.innerHTML='<div class="hint">見つかりませんでした。</div>'; return; }
+      rEl.innerHTML = results.map((r,i)=>`<button type="button" class="geo-result-item" data-i="${i}">${escapeHtml(r.display_name)}</button>`).join('');
+      rEl.querySelectorAll('.geo-result-item').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          rEl.querySelectorAll('.geo-result-item').forEach(b=>b.classList.remove('selected'));
+          btn.classList.add('selected');
+          const r = results[parseInt(btn.dataset.i)];
+          coords = [parseFloat(r.lat), parseFloat(r.lon)];
+          const nameEl = document.getElementById('j-name');
+          if(!nameEl.value.trim()) nameEl.value = r.display_name.split(/、|,/)[0];
+          showToast('位置情報を設定しました。');
+        });
+      });
+    });
+  }
+  document.getElementById('j-cancel').addEventListener('click', closeModal);
+  document.getElementById('j-submit').addEventListener('click', async ()=>{
+    const name = document.getElementById('j-name').value.trim();
+    const comment = document.getElementById('j-comment').value.trim();
+    if(!name || !comment){ showToast('場所の名前とコメントは必須です。'); return; }
+    const record = {
+      id: 'j-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      entityId: prefill.entityId || null,
+      placeName: name, coords,
+      rating: currentRating,
+      visitedDate: document.getElementById('j-date').value,
+      comment,
+      image: uploadedImageData || document.getElementById('j-image').value.trim() || null,
+      createdAt: Date.now()
+    };
+    journal.push(record);
+    await safeSet('p-journal', journal);
+    closeModal(); showToast('保存しました。');
+    renderJournalMarkers();
+    if(prefill.entityId) showEntity(prefill.entityId, {fromTrail:true});
+    else if(coords) map.flyTo(coords, zoomForCoords(coords,null), {duration:0.7});
+  });
+}
+document.getElementById('addJournalBtn').addEventListener('click', ()=>openJournalModal());
+
+async function deleteJournal(id){
+  if(!confirm('この記録を削除します。よろしいですか？')) return;
+  journal = journal.filter(j=>j.id!==id);
+  await safeSet('p-journal', journal);
+  renderJournalMarkers();
+  if(panel.classList.contains('open') && trail.length) showEntity(trail[trail.length-1], {fromTrail:true});
+  if(document.getElementById('timeline').classList.contains('open')) renderTimeline();
+  showToast('削除しました。');
+}
+document.addEventListener('click', (ev)=>{
+  const btn = ev.target.closest('[data-del-journal]');
+  if(btn) deleteJournal(btn.dataset.delJournal);
+});
+
+function openJournalDetail(id){
+  const j = journal.find(x=>x.id===id);
+  if(!j) return;
+  modalBody.innerHTML = `
+    <h3>${escapeHtml(j.placeName)}</h3>
+    <div class="modal-sub">${j.visitedDate?('訪問日: '+escapeHtml(j.visitedDate)):''}</div>
+    ${renderJournalCard(j)}
+    <div class="modal-actions"><button class="modal-cancel" id="jd-close">閉じる</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('jd-close').addEventListener('click', closeModal);
+}
+
+// ---------- タイムライン ----------
+const timelineEl = document.getElementById('timeline');
+document.getElementById('timelineToggle').addEventListener('click', ()=>{
+  panel.classList.remove('open');
+  timelineEl.classList.toggle('open');
+  if(timelineEl.classList.contains('open')) renderTimeline();
+});
+function renderTimeline(){
+  const items = journal.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  const html = items.length ? items.map(j=>{
+    const label = j.entityId ? (DATA[j.entityId]?.name || j.placeName) : j.placeName + '　<span class="empty-msg">（アトラス未登録）</span>';
+    return `<div class="journal-card" data-tl-entity="${j.entityId||''}" data-tl-lat="${j.coords?j.coords[0]:''}" data-tl-lng="${j.coords?j.coords[1]:''}" style="cursor:pointer;">
+      <div class="jc-place">${label}</div>
+      ${renderJournalCard(j)}
+    </div>`;
+  }).join('') : '<p class="empty-msg">まだ訪問記録がありません。</p>';
+  timelineEl.innerHTML = `<h2>訪問記録タイムライン</h2><div class="timeline-note">${items.length}件を新しい順に表示しています。</div><div>${html}</div>`;
+  timelineEl.querySelectorAll('[data-tl-entity]').forEach(card=>{
+    card.addEventListener('click', (ev)=>{
+      if(ev.target.closest('[data-del-journal]')) return;
+      const eid = card.dataset.tlEntity;
+      timelineEl.classList.remove('open');
+      if(eid) showEntity(eid);
+      else if(card.dataset.tlLat){
+        const c=[parseFloat(card.dataset.tlLat), parseFloat(card.dataset.tlLng)];
+        map.flyTo(c, zoomForCoords(c,null), {duration:0.7});
+      }
+    });
+  });
+}
+
+// ---------- 地図検索 ----------
+const mapSearchInput = document.getElementById('mapSearchInput');
+const mapSearchResults = document.getElementById('mapSearchResults');
+let externalMarker = null;
+function normalizeSearchStr(s){
+  return s.toLowerCase().replace(/[・･\s\-—–_,、。]/g,'');
+}
+function fuzzyMatch(target, query){
+  const t = normalizeSearchStr(target), q = normalizeSearchStr(query);
+  if(!q) return false;
+  if(t.includes(q)) return true;
+  if(q.length < 2) return false;
+  let ti=0, matched=0;
+  for(const ch of q){
+    const idx = t.indexOf(ch, ti);
+    if(idx>=0){ matched++; ti = idx+1; }
+  }
+  return (matched / q.length) >= 0.7;
+}
+function localMatches(q){
+  return Object.keys(DATA).filter(id=>fuzzyMatch(DATA[id].name, q)).slice(0,6);
+}
+function renderSearchResults(localIds, externalResults, query){
+  let html='';
+  if(localIds.length){
+    html += `<div class="map-search-section">アトラス内の項目</div>`;
+    html += localIds.map(id=>`<button type="button" class="map-search-item" data-local="${id}"><span class="dot dot-${entityClass(DATA[id])}"></span>${escapeHtml(DATA[id].name)}<span class="msi-sub">${entityLabel(DATA[id])}</span></button>`).join('');
+  }
+  if(externalResults!==null){
+    html += `<div class="map-search-section">地図上の候補地</div>`;
+    if(externalResults === undefined){
+      html += `<div class="map-search-section" style="background:none;">検索に失敗しました。通信環境をご確認のうえ、もう一度お試しください。</div>`;
+    } else {
+      if(externalResults.length){
+        html += externalResults.map((r,i)=>`<button type="button" class="map-search-item" data-ext="${i}">${escapeHtml(r.display_name)}</button>`).join('');
+      } else {
+        html += `<div class="map-search-section" style="background:none;">見つかりませんでした</div>`;
+      }
+      const prefill = externalResults.length ? externalResults[0].display_name : '';
+      html += `<div class="alias-register-row">
+          <input type="text" id="aliasEnglishInput" value="${escapeAttr(prefill)}" placeholder="英語表記が分かれば登録（例：Oxford Street, London）">
+          <button type="button" id="aliasRegisterBtn">辞書に登録</button>
+        </div>`;
+    }
+  }
+  if(!html) return;
+  mapSearchResults.innerHTML = html;
+  mapSearchResults.classList.add('show');
+  mapSearchResults.querySelectorAll('[data-local]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ showEntity(btn.dataset.local); mapSearchResults.classList.remove('show'); mapSearchInput.value=''; });
+  });
+  if(externalResults){
+    mapSearchResults.querySelectorAll('[data-ext]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ selectExternalLocation(externalResults[parseInt(btn.dataset.ext)]); mapSearchResults.classList.remove('show'); });
+    });
+  }
+  const aliasBtn = document.getElementById('aliasRegisterBtn');
+  if(aliasBtn){
+    aliasBtn.addEventListener('click', async (ev)=>{
+      ev.stopPropagation();
+      const englishName = document.getElementById('aliasEnglishInput').value.trim();
+      if(!englishName){ showToast('英語表記を入力してください。'); return; }
+      await saveCustomAlias(query, englishName);
+      showToast(`「${query}」→「${englishName}」を辞書に登録しました。`);
+      const results = await geocodeSearch(query);
+      renderSearchResults(localMatches(query), results===null ? undefined : results, query);
+    });
+  }
+}
+function zoomForSearchResult(r){
+  const types = r.placeType || [];
+  if(types.includes('country')) return 5;
+  if(types.includes('region') || types.includes('subregion') || types.includes('county')) return 7;
+  if(types.includes('place')) return 10;
+  if(types.includes('postal_code') || types.includes('locality') || types.includes('neighborhood') || types.includes('district') || types.includes('municipal_district')) return 13;
+  if(types.includes('address') || types.includes('street') || types.includes('poi') || types.includes('poi.landmark')) return 16;
+  // place_typeが取れない場合は、表記の細かさ（カンマ区切りの数）から推定
+  const parts = (r.display_name||'').split(/,|、/).map(s=>s.trim()).filter(Boolean);
+  if(parts.length <= 1) return 6;
+  if(parts.length === 2) return 9;
+  return 15;
+}
+function selectExternalLocation(r){
+  const lat=parseFloat(r.lat), lng=parseFloat(r.lon);
+  panel.classList.remove('open'); timelineEl.classList.remove('open');
+  map.flyTo([lat,lng], zoomForSearchResult(r), {duration:0.8});
+  if(externalMarker) map.removeLayer(externalMarker);
+  externalMarker = L.marker([lat,lng], {icon: L.divIcon({className:'leaflet-holmes-icon', iconSize:[26,26], iconAnchor:[13,26],
+    html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><circle cx="12" cy="9" r="3"/><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11z"/></svg>'})}).addTo(map);
+  const shortName = r.display_name.split(/、|,/)[0];
+  const popupEl = document.createElement('div');
+  popupEl.innerHTML = `<div style="font-family:'Crimson Pro',serif;font-size:.85rem;max-width:220px;">
+    <div style="margin-bottom:6px;">${escapeHtml(r.display_name)}</div>
+    <button type="button" class="search-popup-btn" id="addFromSearchBtn">新しい地名として追加</button>
+    <button type="button" class="search-popup-btn" id="journalFromSearchBtn" style="background:var(--teal);margin-top:6px;">訪問記録だけ残す</button>
+  </div>`;
+  externalMarker.bindPopup(popupEl).openPopup();
+  externalMarker.once('popupopen', ()=>{
+    document.getElementById('addFromSearchBtn').addEventListener('click', ()=>openEntityModal({name:shortName, lat, lng}));
+    document.getElementById('journalFromSearchBtn').addEventListener('click', ()=>openJournalModal({name:shortName, lat, lng}));
+  });
+}
+let searchDebounce;
+const mapSearchClearBtn = document.getElementById('mapSearchClearBtn');
+mapSearchInput.addEventListener('input', ()=>{
+  clearTimeout(searchDebounce);
+  const q = mapSearchInput.value.trim();
+  mapSearchClearBtn.style.display = q ? 'block' : 'none';
+  if(!q){ mapSearchResults.classList.remove('show'); return; }
+  renderSearchResults(localMatches(q), null, q);
+  searchDebounce = setTimeout(async ()=>{
+    const results = await geocodeSearch(q);
+    renderSearchResults(localMatches(q), results===null ? undefined : results, q);
+  }, 500);
+});
+mapSearchClearBtn.addEventListener('click', ()=>{
+  mapSearchInput.value = '';
+  mapSearchClearBtn.style.display = 'none';
+  mapSearchResults.classList.remove('show');
+  mapSearchInput.focus();
+});
+document.getElementById('mapSearchBtn').addEventListener('click', async ()=>{
+  const q = mapSearchInput.value.trim();
+  if(!q) return;
+  const results = await geocodeSearch(q);
+  renderSearchResults(localMatches(q), results===null ? undefined : results, q);
+});
+document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.map-search')) mapSearchResults.classList.remove('show'); });
+
+// ---------- 現在地から近い場所 ----------
+const locateMapBtn = document.getElementById('locateMapBtn');
+const nearbyPanel = document.getElementById('nearbyPanel');
+let userLocationMarker = null;
+function formatDist(km){ return km<1 ? Math.round(km*1000)+'m' : km.toFixed(1)+'km'; }
+locateMapBtn.addEventListener('click', ()=>{
+  if(!navigator.geolocation){ showToast('お使いのブラウザは位置情報に対応していません。'); return; }
+  showToast('現在地を取得しています…');
+  navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, {enableHighAccuracy:false, timeout:10000, maximumAge:60000});
+});
+function onLocationSuccess(pos){
+  const userCoords = [pos.coords.latitude, pos.coords.longitude];
+  panel.classList.remove('open'); timelineEl.classList.remove('open');
+  if(userLocationMarker) map.removeLayer(userLocationMarker);
+  userLocationMarker = L.circleMarker(userCoords, {radius:8, color:'#2f5d5a', fillColor:'#2f5d5a', fillOpacity:.85, weight:2}).addTo(map);
+  userLocationMarker.bindTooltip('現在地', {direction:'top', offset:[0,-8]});
+  const nearby = Object.keys(DATA).filter(id=>DATA[id].type==='place' && DATA[id].coords)
+    .map(id=>({id, dist: haversineKm(userCoords, DATA[id].coords)})).sort((a,b)=>a.dist-b.dist).slice(0,8);
+  if(nearby.length===0 || nearby[0].dist>300){
+    map.flyTo(userCoords, 12, {duration:0.8});
+    showToast('現在地の近くに登録済みの場所は見つかりませんでした。');
+    nearbyPanel.classList.remove('show');
+    return;
+  }
+  nearbyPanel.innerHTML = `<div class="nearby-panel-head">現在地から近い場所<button class="nearby-panel-close" id="nearbyPanelClose">×</button></div>
+    ${nearby.map(n=>`<button type="button" class="nearby-item" data-id="${n.id}"><span>${escapeHtml(DATA[n.id].name)}</span><span class="ni-dist">${formatDist(n.dist)}</span></button>`).join('')}`;
+  nearbyPanel.classList.add('show');
+  nearbyPanel.querySelectorAll('[data-id]').forEach(btn=>btn.addEventListener('click', ()=>{ nearbyPanel.classList.remove('show'); showEntity(btn.dataset.id); }));
+  document.getElementById('nearbyPanelClose').addEventListener('click', ()=>nearbyPanel.classList.remove('show'));
+  map.flyTo(userCoords, 11, {duration:0.8});
+}
+function onLocationError(err){
+  let msg = '現在地を取得できませんでした。';
+  if(err.code===err.PERMISSION_DENIED) msg='位置情報の利用が許可されませんでした。';
+  else if(err.code===err.POSITION_UNAVAILABLE) msg='現在地を特定できませんでした。';
+  else if(err.code===err.TIMEOUT) msg='タイムアウトしました。';
+  if(location.protocol==='file:') msg += '（file://で開いている場合、使えないことがあります）';
+  showToast(msg);
+}
+document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.nearby-panel') && !ev.target.closest('.locate-map-btn')) nearbyPanel.classList.remove('show'); });
+
+// ---------- 索引トグル・モバイルメニュー ----------
+document.getElementById('indexToggle').addEventListener('click', ()=>document.getElementById('index').classList.toggle('open'));
+const actionBtnsEl = document.getElementById('actionBtns');
+document.getElementById('menuToggle').addEventListener('click', (ev)=>{ ev.stopPropagation(); actionBtnsEl.classList.toggle('open'); });
+actionBtnsEl.querySelectorAll('.hbtn').forEach(btn=>btn.addEventListener('click', ()=>actionBtnsEl.classList.remove('open')));
+document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.action-btns') && !ev.target.closest('.menu-toggle')) actionBtnsEl.classList.remove('open'); });
+
+// ---------- 初期化 ----------
+(async function init(){
+  if(SUPABASE_URL.includes('YOUR_SUPABASE') || SUPABASE_ANON_KEY.includes('YOUR_SUPABASE')){
+    showToast('⚠ Supabaseの設定が未入力です。保存機能が動きません。');
+  }
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  currentUser = session?.user || null;
+  renderAuthArea();
+  await loadAll();
+  DATA = buildData();
+  renderMarkers();
+  renderJournalMarkers();
+  renderIndex();
+})();
+</script>
+</body>
+</html>

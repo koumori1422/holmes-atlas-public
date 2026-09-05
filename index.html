@@ -284,9 +284,11 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
   .panel{width:100%;}
   .header .sub{display:none;}
   .menu-toggle{display:inline-block;}
-  .action-btns{display:none;position:absolute;top:56px;right:12px;z-index:1500;background:var(--ink-2);border:1px solid var(--line);border-radius:4px;flex-direction:column;gap:6px;padding:10px;box-shadow:0 6px 16px rgba(0,0,0,.4);min-width:200px;}
+  .action-btns{display:none;position:absolute;top:56px;right:12px;z-index:1500;background:var(--ink-2);border:1px solid var(--line);border-radius:4px;flex-direction:column;gap:6px;padding:10px;box-shadow:0 6px 16px rgba(0,0,0,.4);min-width:200px;max-width:calc(100vw - 24px);box-sizing:border-box;}
   .action-btns.open{display:flex;}
   .action-btns .hbtn{width:100%;text-align:left;}
+  .action-btns .auth-area{display:flex;flex-direction:column;align-items:stretch;width:100%;gap:6px;margin-left:0;}
+  .action-btns .auth-name{white-space:normal;overflow-wrap:anywhere;}
   .modal{padding:18px 16px 22px;}
   .timeline{padding:16px 16px 50px;}
 }

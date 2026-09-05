@@ -31,7 +31,6 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .header-spacer{flex:1;}
 .hbtn{background:none;border:1px solid var(--line);color:var(--fog);font-size:.82rem;padding:6px 12px;border-radius:3px;cursor:pointer;white-space:nowrap;}
 .auth-area{display:inline-flex;align-items:center;gap:8px;margin-left:6px;}
-.auth-name{color:var(--brass-light);font-size:.82rem;white-space:nowrap;}
 .link-btn{background:none;border:none;color:var(--brass);text-decoration:underline;cursor:pointer;padding:0;font-size:inherit;}
 .google-auth-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;border:1px solid var(--line);color:#3c3c3c;padding:9px;border-radius:4px;cursor:pointer;font-size:.88rem;margin-top:8px;}
 .google-auth-btn:hover{background:#f5f5f5;}
@@ -70,9 +69,9 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .map-status{position:absolute;top:12px;left:12px;z-index:500;background:var(--ink-2);color:var(--fog);border:1px solid var(--line);padding:6px 12px;border-radius:3px;font-size:.8rem;display:none;}
 .map-status.show{display:block;}
 .map-search{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:600;width:min(380px,82%);}
-.stage:has(.panel.open) .map-search,
-.stage:has(.panel.open) .locate-map-btn,
-.stage:has(.panel.open) .historic-toggle-btn{display:none;}
+.stage:has(.panel.open, .timeline.open) .map-search,
+.stage:has(.panel.open, .timeline.open) .locate-map-btn,
+.stage:has(.panel.open, .timeline.open) .historic-toggle-btn{display:none;}
 .map-search-row{display:flex;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);border-radius:3px;}
 .map-search-row input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:3px 0 0 3px;font-size:.9rem;background:#fff;color:var(--charcoal);}
 .map-search-row button{background:var(--brass);border:none;color:#fff;padding:0 16px;border-radius:0;cursor:pointer;font-size:.85rem;}
@@ -176,18 +175,6 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .map-jump-main-btn:hover{background:var(--brass);color:#fff;}
 .map-jump-main-btn svg{width:14px;height:14px;}
 
-.note-section{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;}
-.note-locked{font-size:.85rem;color:var(--slate);}
-.note-section h4{font-weight:600;font-size:.83rem;color:var(--slate);margin:0 0 10px;}
-.stars{display:flex;gap:4px;margin-bottom:10px;}
-.star-btn{background:none;border:none;font-size:1.3rem;line-height:1;cursor:pointer;color:var(--line);padding:0;}
-.star-btn.filled{color:var(--brass);}
-.note-field{margin-bottom:10px;}
-.note-field label{display:block;font-size:.78rem;color:var(--slate);margin-bottom:3px;}
-.note-field input[type=text],.note-field input[type=date],.note-field textarea{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:3px;font-size:.88rem;background:#fff;}
-.note-field textarea{min-height:70px;resize:vertical;}
-.note-save-btn{background:var(--teal);border:none;color:#fff;padding:7px 16px;border-radius:3px;cursor:pointer;font-size:.85rem;}
-
 .journal-section{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;}
 .journal-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .journal-section-head h4{font-weight:600;font-size:.83rem;color:var(--slate);margin:0;}
@@ -207,6 +194,11 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .jc-reply-form{display:flex;gap:6px;margin-top:6px;}
 .jc-reply-form input{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:3px;font-size:.82rem;}
 .jc-reply-form button{background:var(--brass);border:none;color:#fff;padding:0 12px;border-radius:3px;cursor:pointer;font-size:.8rem;}
+.journal-card-private{border-style:dashed;background:var(--parchment-2);}
+.jc-private-badge{display:inline-block;background:var(--slate);color:#fff;font-size:.68rem;padding:2px 8px;border-radius:2px;margin-bottom:8px;}
+.visibility-toggle{display:flex;gap:8px;}
+.vis-btn{flex:1;background:#fff;border:1px solid var(--line);color:var(--charcoal);padding:8px 10px;border-radius:3px;cursor:pointer;font-size:.85rem;}
+.vis-btn.active{border-color:var(--teal);background:var(--teal);color:#fff;}
 .review-section-label{font-weight:600;color:var(--brass-light);margin:16px 0 4px;font-size:.85rem;}
 .empty-msg{font-size:.88rem;opacity:.6;font-style:italic;}
 
@@ -288,7 +280,6 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
   .action-btns.open{display:flex;}
   .action-btns .hbtn{width:100%;text-align:left;}
   .action-btns .auth-area{display:flex;flex-direction:column;align-items:stretch;width:100%;gap:6px;margin-left:0;}
-  .action-btns .auth-name{white-space:normal;overflow-wrap:anywhere;}
   .modal{padding:18px 16px 22px;}
   .timeline{padding:16px 16px 50px;}
 }
@@ -360,11 +351,18 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 
 // ---------- 会員ログイン ----------
 let currentUser = null;
-// 個人メモ（★評価・訪問日・所有版・自由記述・お気に入り）は会員ごとに保存する。
-// 会員本人しかキー（p-notes:<自分のuser id>）を知らないので、他の会員のメモを上書きしてしまうことはない。
-let personalNotes = {}; // { entityId: {rating, visitedDate, ownedEdition, notes, favorite} }
-function notesStorageKey(){
+// 「自分だけの記録」（訪問記録・感想投稿で公開範囲を🔒自分だけにしたもの）は、
+// 会員ごとに保存する。会員本人しかキー（p-notes:<自分のuser id>）を知らないので、
+// 他の会員に見えたり上書きされたりすることはない。journal（公開の投稿）と同じ形の
+// レコードを配列で保持する。
+let privateNotes = []; // [{id, entityId, placeName, coords, visibility:'private', comment, image, visitedDate, createdAt, authorId, authorName}]
+function privateNotesKey(){
   return currentUser ? ('p-notes:' + currentUser.id) : null;
+}
+// ★お気に入り（登録した地名・作品・人物・用語のentityId一覧）も会員ごとに保存する。
+let favorites = [];
+function favoritesKey(){
+  return currentUser ? ('p-favorites:' + currentUser.id) : null;
 }
 function getDisplayName(user){
   if(!user) return '';
@@ -387,11 +385,8 @@ function renderAuthArea(){
   if(currentUser){
     const name = getDisplayName(currentUser);
     const reviewBtn = isReviewer() ? `<button class="hbtn primary" id="reviewDashBtn">審査ダッシュボード<span class="review-count-badge" id="reviewCountBadge"></span></button>` : '';
-    el.innerHTML = `${reviewBtn}<button class="hbtn" id="myBookBtn">📔 マイ巡礼手帳</button><span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="editNameBtn">名前を変更</button><button class="hbtn" id="logoutBtn">ログアウト</button>`;
-    document.getElementById('logoutBtn').addEventListener('click', async ()=>{
-      await supabaseClient.auth.signOut();
-    });
-    document.getElementById('editNameBtn').addEventListener('click', openEditNameModal);
+    el.innerHTML = `${reviewBtn}<button class="hbtn" id="myBookBtn">📔 マイ巡礼手帳</button><button class="hbtn" id="accountBtn">👤 ${escapeHtml(name)}さん</button>`;
+    document.getElementById('accountBtn').addEventListener('click', openAccountModal);
     document.getElementById('reviewDashBtn')?.addEventListener('click', openReviewDashboard);
     document.getElementById('myBookBtn').addEventListener('click', ()=>{
       panel.classList.remove('open');
@@ -401,10 +396,42 @@ function renderAuthArea(){
     });
     updateReviewCountBadge();
   } else {
-    el.innerHTML = `<button class="hbtn" id="loginBtn">ログイン</button><button class="hbtn" id="signupBtn">会員登録</button>`;
-    document.getElementById('loginBtn').addEventListener('click', ()=>openAuthModal('login'));
-    document.getElementById('signupBtn').addEventListener('click', ()=>openAuthModal('signup'));
+    el.innerHTML = `<button class="hbtn" id="accountBtn">アカウント</button>`;
+    document.getElementById('accountBtn').addEventListener('click', openAccountModal);
   }
+}
+function openAccountModal(){
+  if(!currentUser){
+    modalBody.innerHTML = `
+      <h3>アカウント</h3>
+      <div class="modal-sub">ログインすると、地名の提案・訪問記録の投稿ができます。まだ会員登録がお済みでない方も、こちらからどうぞ。</div>
+      <div class="modal-actions" style="justify-content:flex-start;">
+        <button class="modal-submit" id="account-login-btn">ログイン</button>
+        <button class="modal-cancel" id="account-signup-btn">会員登録</button>
+      </div>
+      <div class="modal-actions"><button class="modal-cancel" id="account-close">閉じる</button></div>`;
+    overlay.classList.add('open');
+    document.getElementById('account-close').addEventListener('click', closeModal);
+    document.getElementById('account-login-btn').addEventListener('click', ()=>openAuthModal('login'));
+    document.getElementById('account-signup-btn').addEventListener('click', ()=>openAuthModal('signup'));
+    return;
+  }
+  const name = getDisplayName(currentUser);
+  modalBody.innerHTML = `
+    <h3>アカウント</h3>
+    <div class="modal-sub">${escapeHtml(name)}さんとしてログイン中です。</div>
+    <div class="modal-actions" style="justify-content:flex-start;flex-wrap:wrap;">
+      <button class="modal-submit" id="account-editname-btn">表示名を変更</button>
+      <button class="modal-cancel" id="account-logout-btn">ログアウト</button>
+    </div>
+    <div class="modal-actions"><button class="modal-cancel" id="account-close">閉じる</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('account-close').addEventListener('click', closeModal);
+  document.getElementById('account-editname-btn').addEventListener('click', openEditNameModal);
+  document.getElementById('account-logout-btn').addEventListener('click', async ()=>{
+    await supabaseClient.auth.signOut();
+    closeModal();
+  });
 }
 function openAuthModal(mode){
   const isSignup = mode==='signup';
@@ -515,10 +542,12 @@ function openSetNewPasswordModal(){
     showToast('パスワードを変更しました。');
   });
 }
+function asArray(v){ return Array.isArray(v) ? v : []; }
 supabaseClient.auth.onAuthStateChange(async (event, session)=>{
   if(event === 'PASSWORD_RECOVERY'){ openSetNewPasswordModal(); return; }
   currentUser = session?.user || null;
-  personalNotes = (await safeGet(notesStorageKey())) || {};
+  privateNotes = asArray(await safeGet(privateNotesKey()));
+  favorites = asArray(await safeGet(favoritesKey()));
   renderAuthArea();
 });
 
@@ -1078,7 +1107,7 @@ const NEW_ENTITY_TYPES = ["place","person","work","term"];
 // ---------- 永続ストレージ（すべて自分専用＝shared:false） ----------
 let overrides = {};   // { entityId: {name?, desc?, image?, coords?, extraRelated?:[]} }
 let additions = {};   // { newId: {type,name,desc,image,coords,related:[]} }
-// personalNotesは会員ごとに保存するため、上（会員ログインのセクション）で宣言済み。
+// privateNotes・favoritesは会員ごとに保存するため、上（会員ログインのセクション）で宣言済み。
 let journal = [];     // [{id, entityId, placeName, coords, comment, image, visitedDate, createdAt}]
 let customAliases = {}; // { 正規化されたカタカナキー: "英語表記" } — サイト上で追加できる地名対応辞書
 let proposals = [];   // [{id, kind:'new'|'edit', targetType, targetId, draft, authorId, authorName, status, createdAt, reviewNote}]
@@ -1101,12 +1130,13 @@ async function safeSet(key, value){
   }catch(e){ console.error(e); showToast('保存に失敗しました。'); return false; }
 }
 async function loadAll(){
-  const [ov, add, notes, jour, aliases, props, reps] = await Promise.all([
-    safeGet('p-overrides'), safeGet('p-additions'), safeGet(notesStorageKey()), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals'), safeGet('p-reports')
+  const [ov, add, notes, favs, jour, aliases, props, reps] = await Promise.all([
+    safeGet('p-overrides'), safeGet('p-additions'), safeGet(privateNotesKey()), safeGet(favoritesKey()), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals'), safeGet('p-reports')
   ]);
   overrides = ov || {};
   additions = add || {};
-  personalNotes = notes || {};
+  privateNotes = asArray(notes);
+  favorites = asArray(favs);
   journal = jour || [];
   customAliases = aliases || {};
   proposals = props || [];
@@ -1646,7 +1676,7 @@ function renderIndex(){
   const favOpen = indexOpenGroups.has('favorites');
   const favByType = {place:[], person:[], work:[], 'work-pastiche':[], term:[]};
   ['place','person','work','work-pastiche','term'].forEach(t=>{
-    favByType[t] = groups[t].filter(id=>personalNotes[id] && personalNotes[id].favorite);
+    favByType[t] = groups[t].filter(id=>favorites.includes(id));
   });
   const favTotal = Object.values(favByType).reduce((a,arr)=>a+arr.length, 0);
   html += `<div class="index-group">
@@ -1800,9 +1830,8 @@ function showEntity(id, opts={}){
     ? `<button class="map-jump-main-btn" id="mapJumpBtn">${pinIconSvg} 地図で見る</button>
        <a class="map-jump-main-btn" href="https://www.google.com/maps/search/${encodeURIComponent(e.name)}/@${e.coords[0]},${e.coords[1]},17z" target="_blank" rel="noopener noreferrer">${gmapsIconSvg} Googleマップ（営業時間など）</a>`
     : '';
-  const noteHtml = renderNoteSection(id);
-  const journalHtml = e.type==='place' ? renderEntityJournalSection(id) : '';
-  const isFav = !!(personalNotes[id] && personalNotes[id].favorite);
+  const journalHtml = renderEntityJournalSection(id);
+  const isFav = favorites.includes(id);
   const favBtnHtml = `<button class="fav-toggle-btn ${isFav?'active':''}" id="favToggleBtn">${isFav?'★':'☆'} お気に入り</button>`;
   const DESC_LIMIT = 500;
   const descBodyHtml = renderDescBody(e.desc);
@@ -1824,7 +1853,6 @@ function showEntity(id, opts={}){
         <div class="chip-row">${relatedHtml || '<span class="empty-msg">関連項目なし</span>'}</div>
       </div>
       <button class="edit-btn" id="editBtn">編集する</button>
-      ${noteHtml}
       ${journalHtml}
     </div>`;
 
@@ -1860,9 +1888,8 @@ function showEntity(id, opts={}){
   });
   document.getElementById('favToggleBtn')?.addEventListener('click', async ()=>{
     if(!currentUser){ showToast('お気に入り登録にはログインが必要です。'); return; }
-    personalNotes[id] = personalNotes[id] || {};
-    personalNotes[id].favorite = !personalNotes[id].favorite;
-    await safeSet(notesStorageKey(), personalNotes);
+    if(favorites.includes(id)) favorites = favorites.filter(x=>x!==id); else favorites.push(id);
+    await safeSet(favoritesKey(), favorites);
     showEntity(id, {fromTrail:true});
     renderIndex();
   });
@@ -1873,10 +1900,9 @@ function showEntity(id, opts={}){
   panelContent.querySelectorAll('[data-del-photo]').forEach(btn=>{
     btn.addEventListener('click', ()=>deletePhoto(btn.dataset.photoEntity, btn.dataset.delPhoto));
   });
-  wireNoteSection(id);
   const addJBtn = document.getElementById('addEntityJournalBtn');
   if(addJBtn) addJBtn.addEventListener('click', ()=>{
-    if(!currentUser){ showToast('訪問記録の投稿にはログインが必要です。'); return; }
+    if(!currentUser){ showToast('投稿にはログインが必要です。'); return; }
     openJournalModal({entityId:id, name:e.name, lat: e.coords?e.coords[0]:null, lng: e.coords?e.coords[1]:null});
   });
   panel.classList.add('open');
@@ -1911,55 +1937,6 @@ function goToMap(id){
   } else {
     map.flyTo(e.coords, zoomForEntity(id), {duration:0.7});
   }
-}
-
-// ---------- 個人メモ（★評価・訪問日・所有版・自由記述） ----------
-function renderNoteSection(id){
-  if(!currentUser){
-    return `
-    <div class="note-section">
-      <h4>個人メモ</h4>
-      <div class="note-locked">ログインすると、★評価やメモを書き込めます。<button class="link-btn" id="noteLoginPrompt">ログイン</button></div>
-    </div>`;
-  }
-  const n = personalNotes[id] || {};
-  const rating = n.rating || 0;
-  const stars = [1,2,3,4,5].map(i=>`<button type="button" class="star-btn ${i<=rating?'filled':''}" data-star="${i}">★</button>`).join('');
-  return `
-    <div class="note-section">
-      <h4>個人メモ</h4>
-      <div class="stars" id="noteStars">${stars}</div>
-      <div class="note-field"><label>訪問日・読了日</label><input type="date" id="noteDate" value="${n.visitedDate||''}"></div>
-      <div class="note-field"><label>所有版・関連メモ（任意）</label><input type="text" id="noteEdition" value="${n.ownedEdition?escapeAttr(n.ownedEdition):''}" placeholder="例：光文社文庫版、2019年訪問"></div>
-      <div class="note-field"><label>自由記述</label><textarea id="noteText" placeholder="自分用のメモを自由に">${n.notes?escapeHtml(n.notes):''}</textarea></div>
-      <button class="note-save-btn" id="noteSaveBtn">メモを保存</button>
-    </div>`;
-}
-function wireNoteSection(id){
-  if(!currentUser){
-    document.getElementById('noteLoginPrompt')?.addEventListener('click', ()=>openAuthModal('login'));
-    return;
-  }
-  let currentRating = (personalNotes[id]||{}).rating || 0;
-  const starsEl = document.getElementById('noteStars');
-  starsEl.querySelectorAll('.star-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const v = parseInt(btn.dataset.star);
-      currentRating = (currentRating===v) ? 0 : v;
-      starsEl.querySelectorAll('.star-btn').forEach(b=>b.classList.toggle('filled', parseInt(b.dataset.star)<=currentRating));
-    });
-  });
-  document.getElementById('noteSaveBtn').addEventListener('click', async ()=>{
-    if(!currentUser){ showToast('メモの保存にはログインが必要です。'); return; }
-    personalNotes[id] = Object.assign(personalNotes[id]||{}, {
-      rating: currentRating,
-      visitedDate: document.getElementById('noteDate').value,
-      ownedEdition: document.getElementById('noteEdition').value.trim(),
-      notes: document.getElementById('noteText').value.trim()
-    });
-    await safeSet(notesStorageKey(), personalNotes);
-    showToast('メモを保存しました。');
-  });
 }
 
 // ---------- モーダル：新規項目 / 編集 ----------
@@ -2411,8 +2388,10 @@ async function deleteEntity(targetId){
     overrides[targetId].deleted = true;
     await safeSet('p-overrides', overrides);
   }
-  delete personalNotes[targetId];
-  await safeSet(notesStorageKey(), personalNotes);
+  favorites = favorites.filter(x=>x!==targetId);
+  await safeSet(favoritesKey(), favorites);
+  privateNotes = privateNotes.filter(n=>n.entityId!==targetId);
+  await safeSet(privateNotesKey(), privateNotes);
   DATA = buildData();
   renderMarkers(); renderIndex();
   panel.classList.remove('open');
@@ -2501,61 +2480,83 @@ async function deletePhoto(entityId, photoId){
   showEntity(entityId, {fromTrail:true});
 }
 function renderEntityJournalSection(entityId){
-  const list = journal.filter(j=>j.entityId===entityId).slice().sort((a,b)=>b.createdAt-a.createdAt);
-  const html = list.length ? list.map(j=>renderJournalCard(j)).join('') : '<p class="empty-msg">まだ記録はありません。</p>';
+  const isPlace = DATA[entityId]?.type === 'place';
+  const mine = currentUser ? privateNotes.filter(j=>j.entityId===entityId) : [];
+  const list = journal.filter(j=>j.entityId===entityId).concat(mine).sort((a,b)=>b.createdAt-a.createdAt);
+  const emptyMsg = isPlace ? 'まだ記録はありません。' : 'まだ感想・コメントはありません。訪れたことがなくても投稿できます。';
+  const html = list.length ? list.map(j=>renderJournalCard(j)).join('') : `<p class="empty-msg">${emptyMsg}</p>`;
   return `
     <div class="journal-section">
-      <div class="journal-section-head"><h4>訪問記録（${list.length}件）</h4><button class="add-journal-btn" id="addEntityJournalBtn">＋ 追加</button></div>
+      <div class="journal-section-head"><h4>${isPlace ? '訪問記録' : '感想・コメント'}（${list.length}件）</h4><button class="add-journal-btn" id="addEntityJournalBtn">＋ ${isPlace ? '追加' : '感想を書く'}</button></div>
       ${html}
     </div>`;
 }
 function renderJournalCard(j){
-  const liked = currentUser && (j.likedBy||[]).includes(currentUser.id);
-  const likeCount = (j.likedBy||[]).length;
-  const canDelete = currentUser && (currentUser.id === j.authorId || isReviewer());
-  const replies = j.replies || [];
-  return `
-    <div class="journal-card" data-journal-id="${j.id}">
-      ${j.image ? `<img src="${escapeAttr(j.image)}" alt="">` : ''}
-      <p class="jc-comment">${escapeHtml(j.comment)}</p>
-      <div class="jc-meta">${j.authorName ? escapeHtml(j.authorName)+' ・ ' : ''}${j.visitedDate?('訪問日: '+escapeHtml(j.visitedDate)+' ・ '):''}${fmtDate(j.createdAt)}</div>
-      <div class="jc-actions">
+  const isPrivate = j.visibility === 'private';
+  const liked = !isPrivate && currentUser && (j.likedBy||[]).includes(currentUser.id);
+  const likeCount = isPrivate ? 0 : (j.likedBy||[]).length;
+  const canDelete = currentUser && (currentUser.id === j.authorId || (!isPrivate && isReviewer()));
+  const replies = isPrivate ? [] : (j.replies || []);
+  const actionsHtml = isPrivate ? '' : `
         <button class="jc-like-btn ${liked?'liked':''}" data-like-journal="${j.id}">${liked?'♥':'♡'} ${likeCount>0?likeCount:''}</button>
         <button class="jc-reply-toggle-btn" data-reply-toggle="${j.id}">返信${replies.length>0?'（'+replies.length+'）':''}</button>
-        <button class="jc-report-btn" data-report-journal="${j.id}">通報</button>
+        <button class="jc-report-btn" data-report-journal="${j.id}">通報</button>`;
+  return `
+    <div class="journal-card ${isPrivate?'journal-card-private':''}" data-journal-id="${j.id}">
+      ${isPrivate ? '<div class="jc-private-badge">🔒 自分だけの記録</div>' : ''}
+      ${j.image ? `<img src="${escapeAttr(j.image)}" alt="">` : ''}
+      <p class="jc-comment">${escapeHtml(j.comment)}</p>
+      <div class="jc-meta">${(!isPrivate && j.authorName) ? escapeHtml(j.authorName)+' ・ ' : ''}${j.visitedDate?('訪問日: '+escapeHtml(j.visitedDate)+' ・ '):''}${fmtDate(j.createdAt)}</div>
+      <div class="jc-actions">${actionsHtml}
         ${canDelete ? `<button class="jc-delete-btn" data-del-journal="${j.id}">削除</button>` : ''}
       </div>
-      <div class="jc-replies" id="replies-${j.id}" style="display:none;">
+      ${isPrivate ? '' : `<div class="jc-replies" id="replies-${j.id}" style="display:none;">
         ${replies.map(r=>`<div class="jc-reply"><strong>${escapeHtml(r.authorName)}</strong>：${escapeHtml(r.comment)}</div>`).join('')}
         ${currentUser ? `<div class="jc-reply-form"><input type="text" id="reply-input-${j.id}" placeholder="返信を書く"><button data-reply-submit="${j.id}">送信</button></div>` : ''}
-      </div>
+      </div>`}
     </div>`;
 }
 
 function openJournalModal(prefill){
   prefill = prefill || {};
+  const isPlaceKind = !prefill.entityId || DATA[prefill.entityId]?.type === 'place';
   let coords = (typeof prefill.lat==='number') ? [prefill.lat, prefill.lng] : null;
   let uploadedImageData = null;
   modalBody.innerHTML = `
-    <h3>訪問記録を追加</h3>
-    <div class="modal-sub">その場で保存されます。</div>
-    <div class="field"><label>場所の名前</label><input type="text" id="j-name" value="${prefill.name?escapeAttr(prefill.name):''}" ${prefill.entityId?'readonly':''}></div>
+    <h3>${isPlaceKind ? '訪問記録を追加' : '感想を投稿'}</h3>
+    <div class="modal-sub">${isPlaceKind ? 'その場で保存されます。' : '訪れたことがなくても、読んだ感想や気づいたことを投稿できます。'}</div>
+    <div class="field"><label>${isPlaceKind ? '場所の名前' : '対象'}</label><input type="text" id="j-name" value="${prefill.name?escapeAttr(prefill.name):''}" ${prefill.entityId?'readonly':''}></div>
     ${!prefill.entityId ? `
     <div class="field">
       <label>位置を検索する（任意）</label>
       <div class="geo-row"><input type="text" id="j-geo-query" placeholder="地名で検索"><button type="button" class="geo-search-btn" id="j-geo-search">検索</button></div>
       <div class="geo-results" id="j-geo-results"></div>
     </div>` : ''}
-    <div class="field"><label>訪問日（任意）</label><input type="date" id="j-date"></div>
+    <div class="field"><label>${isPlaceKind ? '訪問日（任意）' : '日付（任意）'}</label><input type="date" id="j-date"></div>
     <div class="field"><label>コメント</label><textarea id="j-comment" placeholder="感想や発見したことなど"></textarea></div>
     <div class="field"><label>写真（任意）</label>
       <input type="file" class="file-input" id="j-image-file" accept="image/*">
       <input type="text" id="j-image" placeholder="https://..." style="margin-top:6px;">
       <div class="image-preview" id="j-image-preview"></div>
     </div>
+    <div class="field">
+      <label>公開範囲</label>
+      <div class="visibility-toggle">
+        <button type="button" class="vis-btn active" data-vis="public">🔓 みんなに公開</button>
+        <button type="button" class="vis-btn" data-vis="private">🔒 自分だけ</button>
+      </div>
+      <div class="hint">${isPlaceKind ? '「自分だけ」を選ぶと他の会員には見えない個人的な記録になります（いいね・返信はできません）。' : '「自分だけ」を選ぶと他の会員には見えない個人的なメモになります。'}</div>
+    </div>
     <div class="modal-actions"><button class="modal-cancel" id="j-cancel">キャンセル</button><button class="modal-submit" id="j-submit">保存する</button></div>`;
   overlay.classList.add('open');
   wireImageUpload('j-image-file','j-image-preview', d=>uploadedImageData=d);
+  let visibility = 'public';
+  modalBody.querySelectorAll('.vis-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      visibility = btn.dataset.vis;
+      modalBody.querySelectorAll('.vis-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    });
+  });
   if(!prefill.entityId){
     document.getElementById('j-geo-search').addEventListener('click', async ()=>{
       const q = document.getElementById('j-geo-query').value.trim();
@@ -2580,14 +2581,15 @@ function openJournalModal(prefill){
   }
   document.getElementById('j-cancel').addEventListener('click', closeModal);
   document.getElementById('j-submit').addEventListener('click', async ()=>{
-    if(!currentUser){ showToast('訪問記録の投稿にはログインが必要です。'); return; }
+    if(!currentUser){ showToast('投稿にはログインが必要です。'); return; }
     const name = document.getElementById('j-name').value.trim();
     const comment = document.getElementById('j-comment').value.trim();
-    if(!name || !comment){ showToast('場所の名前とコメントは必須です。'); return; }
+    if(!name || !comment){ showToast(isPlaceKind ? '場所の名前とコメントは必須です。' : '対象とコメントは必須です。'); return; }
     const record = {
       id: 'j-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
       entityId: prefill.entityId || null,
       placeName: name, coords,
+      visibility,
       visitedDate: document.getElementById('j-date').value,
       comment,
       image: uploadedImageData || document.getElementById('j-image').value.trim() || null,
@@ -2596,8 +2598,13 @@ function openJournalModal(prefill){
       authorName: getDisplayName(currentUser),
       likedBy: [], replies: []
     };
-    journal.push(record);
-    await safeSet('p-journal', journal);
+    if(visibility === 'private'){
+      privateNotes.push(record);
+      await safeSet(privateNotesKey(), privateNotes);
+    } else {
+      journal.push(record);
+      await safeSet('p-journal', journal);
+    }
     closeModal(); showToast('保存しました。');
     renderJournalMarkers();
     if(prefill.entityId) showEntity(prefill.entityId, {fromTrail:true});
@@ -2616,12 +2623,22 @@ function refreshJournalViews(){
   if(myBookEl.classList.contains('open')) renderMyBook();
 }
 async function deleteJournal(id){
-  const j = journal.find(x=>x.id===id);
-  if(!j) return;
-  if(!currentUser || (currentUser.id !== j.authorId && !isReviewer())){ showToast('この投稿を削除する権限がありません。'); return; }
+  const inPublic = journal.find(x=>x.id===id);
+  if(inPublic){
+    if(!currentUser || (currentUser.id !== inPublic.authorId && !isReviewer())){ showToast('この投稿を削除する権限がありません。'); return; }
+    if(!confirm('この記録を削除します。よろしいですか？')) return;
+    journal = journal.filter(x=>x.id!==id);
+    await safeSet('p-journal', journal);
+    showToast('削除しました。');
+    refreshJournalViews();
+    return;
+  }
+  const inPrivate = privateNotes.find(x=>x.id===id);
+  if(!inPrivate) return;
+  if(!currentUser || currentUser.id !== inPrivate.authorId){ showToast('この投稿を削除する権限がありません。'); return; }
   if(!confirm('この記録を削除します。よろしいですか？')) return;
-  journal = journal.filter(x=>x.id!==id);
-  await safeSet('p-journal', journal);
+  privateNotes = privateNotes.filter(x=>x.id!==id);
+  await safeSet(privateNotesKey(), privateNotes);
   showToast('削除しました。');
   refreshJournalViews();
 }
@@ -2700,7 +2717,7 @@ function renderTimeline(){
   document.getElementById('timelineClose').addEventListener('click', ()=>timelineEl.classList.remove('open'));
   timelineEl.querySelectorAll('[data-tl-entity]').forEach(card=>{
     card.addEventListener('click', (ev)=>{
-      if(ev.target.closest('[data-del-journal]')) return;
+      if(ev.target.closest('[data-del-journal],[data-like-journal],[data-reply-toggle],[data-reply-submit],[data-report-journal],.jc-reply-form,.jc-replies')) return;
       const eid = card.dataset.tlEntity;
       timelineEl.classList.remove('open');
       if(eid) showEntity(eid);
@@ -2732,8 +2749,9 @@ function renderMyBook(){
     document.getElementById('myBookClose').addEventListener('click', ()=>myBookEl.classList.remove('open'));
     return;
   }
-  const myPosts = journal.filter(j=>j.authorId===currentUser.id).sort((a,b)=>b.createdAt-a.createdAt);
-  const visitedIds = new Set(myPosts.filter(j=>j.entityId).map(j=>j.entityId));
+  const myPosts = journal.filter(j=>j.authorId===currentUser.id).concat(privateNotes).sort((a,b)=>b.createdAt-a.createdAt);
+  // 作品・人物・用語への感想投稿も同じjournalに入るため、踏破率には地名のものだけを数える
+  const visitedIds = new Set(myPosts.filter(j=>j.entityId && DATA[j.entityId]?.type==='place').map(j=>j.entityId));
   const visitedCount = visitedIds.size;
   const totalPlaces = Object.values(DATA).filter(e=>e.type==='place').length;
   const pct = totalPlaces>0 ? Math.min(100, Math.round(visitedCount/totalPlaces*100)) : 0;
@@ -2765,7 +2783,7 @@ function renderMyBook(){
   document.getElementById('myBookClose').addEventListener('click', ()=>myBookEl.classList.remove('open'));
   myBookEl.querySelectorAll('[data-tl-entity]').forEach(card=>{
     card.addEventListener('click', (ev)=>{
-      if(ev.target.closest('[data-del-journal],[data-like-journal],[data-reply-toggle],[data-reply-submit],[data-report-journal],.jc-reply-form')) return;
+      if(ev.target.closest('[data-del-journal],[data-like-journal],[data-reply-toggle],[data-reply-submit],[data-report-journal],.jc-reply-form,.jc-replies')) return;
       const eid = card.dataset.tlEntity;
       myBookEl.classList.remove('open');
       if(eid) showEntity(eid);

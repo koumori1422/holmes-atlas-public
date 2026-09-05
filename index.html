@@ -347,6 +347,11 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 
 // ---------- 会員ログイン ----------
 let currentUser = null;
+function getDisplayName(user){
+  if(!user) return '';
+  const m = user.user_metadata || {};
+  return m.display_name || m.full_name || m.name || user.email;
+}
 // ---------- 審査担当者 ----------
 let reviewerEmails = [];
 async function loadReviewers(){
@@ -361,12 +366,13 @@ function isReviewer(){
 function renderAuthArea(){
   const el = document.getElementById('authArea');
   if(currentUser){
-    const name = currentUser.user_metadata?.display_name || currentUser.email;
+    const name = getDisplayName(currentUser);
     const reviewBtn = isReviewer() ? `<button class="hbtn primary" id="reviewDashBtn">審査ダッシュボード<span class="review-count-badge" id="reviewCountBadge"></span></button>` : '';
-    el.innerHTML = `${reviewBtn}<span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="logoutBtn">ログアウト</button>`;
+    el.innerHTML = `${reviewBtn}<span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="editNameBtn">名前を変更</button><button class="hbtn" id="logoutBtn">ログアウト</button>`;
     document.getElementById('logoutBtn').addEventListener('click', async ()=>{
       await supabaseClient.auth.signOut();
     });
+    document.getElementById('editNameBtn').addEventListener('click', openEditNameModal);
     document.getElementById('reviewDashBtn')?.addEventListener('click', openReviewDashboard);
     updateReviewCountBadge();
   } else {
@@ -419,6 +425,28 @@ function openAuthModal(mode){
       closeModal();
       showToast('ログインしました。');
     }
+  });
+}
+async function openEditNameModal(){
+  modalBody.innerHTML = `
+    <h3>表示名を変更</h3>
+    <div class="modal-sub">投稿・いいね・返信に表示される名前です。</div>
+    <div class="field"><label>新しい表示名</label><input type="text" id="editname-input" value="${escapeAttr(getDisplayName(currentUser))}"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="editname-cancel">キャンセル</button>
+      <button class="modal-submit" id="editname-submit">変更する</button>
+    </div>`;
+  overlay.classList.add('open');
+  document.getElementById('editname-cancel').addEventListener('click', closeModal);
+  document.getElementById('editname-submit').addEventListener('click', async ()=>{
+    const name = document.getElementById('editname-input').value.trim();
+    if(!name){ showToast('表示名を入力してください。'); return; }
+    const { data, error } = await supabaseClient.auth.updateUser({ data: { display_name: name } });
+    if(error){ showToast('変更に失敗しました：' + error.message); return; }
+    currentUser = data.user;
+    closeModal();
+    showToast('表示名を変更しました。');
+    renderAuthArea();
   });
 }
 function openForgotPasswordModal(){
@@ -2007,7 +2035,7 @@ function openEntityModal(prefill){
       proposals.push({
         id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
         kind: 'new', targetType: type, targetId: null, draft,
-        authorId: currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email,
+        authorId: currentUser.id, authorName: getDisplayName(currentUser),
         status: 'pending', createdAt: Date.now(), reviewNote: ''
       });
       await safeSet('p-proposals', proposals);
@@ -2100,7 +2128,7 @@ function openEditModal(targetId){
       proposals.push({
         id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
         kind: 'edit', targetType: e.type, targetId, draft,
-        authorId: currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email,
+        authorId: currentUser.id, authorName: getDisplayName(currentUser),
         status: 'pending', createdAt: Date.now(), reviewNote: ''
       });
       await safeSet('p-proposals', proposals);
@@ -2174,7 +2202,7 @@ async function openReportModal(journalId){
     reports.push({
       id: 'rep-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
       journalId, reason,
-      reporterId: currentUser.id, reporterName: currentUser.user_metadata?.display_name || currentUser.email,
+      reporterId: currentUser.id, reporterName: getDisplayName(currentUser),
       status: 'pending', createdAt: Date.now()
     });
     await safeSet('p-reports', reports);
@@ -2421,7 +2449,7 @@ function openPhotoModal(entityId){
       proposals.push({
         id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
         kind: 'photo', targetType: e.type, targetId: entityId, draft: photo,
-        authorId: currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email,
+        authorId: currentUser.id, authorName: getDisplayName(currentUser),
         status: 'pending', createdAt: Date.now(), reviewNote: ''
       });
       await safeSet('p-proposals', proposals);
@@ -2544,7 +2572,7 @@ function openJournalModal(prefill){
       image: uploadedImageData || document.getElementById('j-image').value.trim() || null,
       createdAt: Date.now(),
       authorId: currentUser.id,
-      authorName: currentUser.user_metadata?.display_name || currentUser.email,
+      authorName: getDisplayName(currentUser),
       likedBy: [], replies: []
     };
     journal.push(record);
@@ -2590,7 +2618,7 @@ async function addJournalReply(id, comment){
   const j = journal.find(x=>x.id===id);
   if(!j) return;
   j.replies = j.replies || [];
-  j.replies.push({id:'r-'+Date.now().toString(36), authorId:currentUser.id, authorName: currentUser.user_metadata?.display_name || currentUser.email, comment, createdAt: Date.now()});
+  j.replies.push({id:'r-'+Date.now().toString(36), authorId:currentUser.id, authorName: getDisplayName(currentUser), comment, createdAt: Date.now()});
   await safeSet('p-journal', journal);
   showToast('返信しました。');
   refreshJournalViews();

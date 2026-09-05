@@ -16,7 +16,7 @@
   --ink:#1c2430; --ink-2:#232d3c;
   --parchment:#ece3cc; --parchment-2:#e0d4b3;
   --brass:#ab8347; --brass-light:#c9a562;
-  --burgundy:#7a2634; --teal:#2f5d5a; --slate:#55606e; --pastiche:#7c5980;
+  --burgundy:#7a2634; --teal:#2f5d5a; --slate:#55606e; --pastiche:#7c5980; --moss:#5f7a52;
   --charcoal:#2b2620; --fog:#cdd5db; --line:rgba(171,131,71,0.35);
 }
 *{box-sizing:border-box;}
@@ -107,6 +107,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .leaflet-holmes-icon svg{width:14px;height:14px;}
 .leaflet-holmes-icon-peripheral{background:var(--slate);opacity:.8;border:1.5px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.4);}
 .leaflet-holmes-icon-peripheral svg{width:9px;height:9px;}
+.leaflet-holmes-icon-misc{background:var(--moss);opacity:.8;border:1.5px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.4);}
+.leaflet-holmes-icon-misc svg{width:9px;height:9px;}
 .leaflet-holmes-special-icon{background:var(--burgundy);border:3px solid var(--brass-light);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(171,131,71,.35),0 2px 8px rgba(0,0,0,.6);}
 .leaflet-holmes-special-icon svg{width:19px;height:19px;}
 .place-label-special{background:var(--burgundy)!important;color:#fff!important;border:2px solid var(--brass-light)!important;font-family:'Crimson Pro',serif;font-weight:700!important;font-size:.82rem!important;padding:4px 10px!important;border-radius:2px;box-shadow:0 2px 8px rgba(0,0,0,.5)!important;pointer-events:none!important;}
@@ -115,6 +117,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .leaflet-journal-icon svg{width:13px;height:13px;}
 .place-label{background:rgba(28,36,48,.88)!important;color:var(--parchment)!important;border:1px solid var(--brass)!important;font-family:'Crimson Pro',serif;font-size:.72rem!important;padding:2px 7px!important;border-radius:2px;box-shadow:none!important;pointer-events:none!important;}
 .place-label::before{border-top-color:rgba(28,36,48,.88)!important;}
+.place-label-peripheral{border-color:var(--slate)!important;}
+.place-label-misc{border-color:var(--moss)!important;}
 .hide-place-labels .place-label{display:none;}
 .hide-place-labels .place-label.force-show{display:block!important;}
 .leaflet-tooltip.force-show{z-index:650!important;}
@@ -138,6 +142,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .badge-work{background:var(--teal);} .badge-term{background:var(--slate);}
 .badge-pastiche{background:var(--pastiche);}
 .badge-peripheral{background:none;border:1px solid var(--slate);color:var(--slate)!important;}
+.badge-misc{background:none;border:1px solid var(--moss);color:var(--moss)!important;}
 .panel-body h3{font-family:'Playfair Display',serif;font-weight:600;font-size:1.4rem;margin:2px 0 12px;color:var(--ink);}
 .panel-body img.entity-img{width:100%;border-radius:3px;margin-bottom:14px;border:1px solid var(--line);}
 .photo-row{display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;}
@@ -259,6 +264,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .mybook-numbers{display:flex;gap:22px;flex-wrap:wrap;font-size:.78rem;color:var(--slate);}
 .mybook-numbers strong{display:block;font-size:1.35rem;color:var(--ink);font-family:'Playfair Display',serif;font-weight:600;}
 .mybook-section-label{font-weight:600;color:var(--slate);margin:0 0 10px;font-size:.85rem;}
+.mybook-track-head{font-family:'Playfair Display',serif;font-weight:600;font-size:.95rem;color:var(--ink);margin-bottom:8px;}
 
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink-2);color:var(--parchment);padding:10px 20px;border-radius:4px;border:1px solid var(--brass);font-size:.88rem;z-index:3000;opacity:0;pointer-events:none;transition:opacity .25s ease;}
 .lightbox-overlay{position:fixed;inset:0;background:rgba(10,13,18,.92);display:none;align-items:center;justify-content:center;z-index:5000;padding:30px;cursor:zoom-out;}
@@ -1513,6 +1519,11 @@ function makePeripheralIcon(){
     html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/></svg>',
     iconSize:[18,18], iconAnchor:[9,9]});
 }
+function makeMiscIcon(){
+  return L.divIcon({className:'leaflet-holmes-icon-misc',
+    html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/></svg>',
+    iconSize:[18,18], iconAnchor:[9,9]});
+}
 function makeSpecialIcon(){
   return L.divIcon({className:'leaflet-holmes-special-icon',
     html:'<svg viewBox="0 0 24 24" fill="none" stroke="#ece3cc" stroke-width="2.2"><circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/></svg>',
@@ -1603,9 +1614,9 @@ function renderMarkers(){
   Object.keys(DATA).forEach(id=>{
     const e = DATA[id];
     if(e.type==='place' && e.coords){
-      if(coreOnlyFilter && e.relevance==='peripheral') return;
+      if(coreOnlyFilter && e.relevance!=='core') return;
       const isSpecial = id === 'baker-street';
-      const icon = isSpecial ? makeSpecialIcon() : (e.relevance==='peripheral' ? makePeripheralIcon() : makeIcon());
+      const icon = isSpecial ? makeSpecialIcon() : (e.relevance==='peripheral' ? makePeripheralIcon() : (e.relevance==='misc' ? makeMiscIcon() : makeIcon()));
       const m = L.marker(e.coords,{icon, zIndexOffset: isSpecial ? 2000 : 0});
       m.entityName = e.name;
       m.on('click', ()=>showEntity(id));
@@ -1615,7 +1626,7 @@ function renderMarkers(){
         m.on('mouseout', ()=>{ m.getTooltip()?.getElement()?.classList.remove('force-show'); });
       } else if(isInUK(e.coords)){
         const ld = labelDirectionFor(id);
-        m.bindTooltip(e.name,{direction:ld.direction,offset:ld.offset,permanent:true,className: e.relevance==='peripheral' ? 'place-label place-label-peripheral' : 'place-label'});
+        m.bindTooltip(e.name,{direction:ld.direction,offset:ld.offset,permanent:true,className: e.relevance==='peripheral' ? 'place-label place-label-peripheral' : (e.relevance==='misc' ? 'place-label place-label-misc' : 'place-label')});
         m.on('mouseover', ()=>{ m.getTooltip()?.getElement()?.classList.add('force-show'); });
         m.on('mouseout', ()=>{ m.getTooltip()?.getElement()?.classList.remove('force-show'); });
       }
@@ -1663,7 +1674,7 @@ function renderIndex(){
     if(e.type==='work'){
       (e.canon ? groups.work : groups['work-pastiche']).push(id);
     } else if(e.type==='place'){
-      if(!coreOnlyFilter || e.relevance!=='peripheral') groups.place.push(id);
+      if(!coreOnlyFilter || e.relevance==='core') groups.place.push(id);
     } else {
       groups[e.type].push(id);
     }
@@ -1842,7 +1853,7 @@ function showEntity(id, opts={}){
   panelContent.innerHTML = `
     <div class="trail">${trailHtml}</div>
     <div class="panel-body">
-      <span class="type-badge badge-${entityClass(e)}">${entityLabel(e)}</span>${e.relevance==='peripheral' ? ' <span class="type-badge badge-peripheral">周辺情報</span>' : ''}
+      <span class="type-badge badge-${entityClass(e)}">${entityLabel(e)}</span>${e.relevance==='peripheral' ? ' <span class="type-badge badge-peripheral">周辺情報</span>' : (e.relevance==='misc' ? ' <span class="type-badge badge-misc">その他</span>' : '')}
       ${favBtnHtml}
       <h3>${e.name}</h3>
       ${mapJumpHtml}
@@ -1967,6 +1978,7 @@ function openEntityModal(prefill){
       <select id="f-relevance">
         <option value="core">核心（正典・パスティーシュに直結する場所）</option>
         <option value="peripheral">周辺情報（伝記的・ファン向けなど）</option>
+        <option value="misc">その他（ホームズと直結しないが集めたい情報）</option>
       </select>
     </div>
     <div class="field" id="f-canon-field" style="display:none;">
@@ -2081,8 +2093,9 @@ function openEditModal(targetId){
     <div class="field">
       <label>関連度</label>
       <select id="f-relevance">
-        <option value="core" ${e.relevance!=='peripheral'?'selected':''}>核心（正典・パスティーシュに直結する場所）</option>
+        <option value="core" ${(e.relevance!=='peripheral'&&e.relevance!=='misc')?'selected':''}>核心（正典・パスティーシュに直結する場所）</option>
         <option value="peripheral" ${e.relevance==='peripheral'?'selected':''}>周辺情報（伝記的・ファン向けなど）</option>
+        <option value="misc" ${e.relevance==='misc'?'selected':''}>その他（ホームズと直結しないが集めたい情報）</option>
       </select>
       <div class="hint">地図上のピンの大きさ・色や「正典登場地のみ」フィルターに反映されます。</div>
     </div>` : ''}
@@ -2731,17 +2744,87 @@ function renderTimeline(){
 
 // ---------- マイ巡礼手帳 ----------
 const myBookEl = document.getElementById('myBook');
-const BADGE_TIERS = [
-  {min:50, icon:'🕵️', label:'名探偵の相棒'},
-  {min:30, icon:'🏠', label:'ベイカー街の常連'},
-  {min:15, icon:'📖', label:'熱心な会員'},
-  {min:5,  icon:'🔍', label:'駆け出し捜査官'},
-  {min:1,  icon:'👣', label:'第一歩'},
-  {min:0,  icon:'🎩', label:'見習い'}
-]; // min件数の降順。全地点踏破は別枠で判定する。
-function badgeForCount(visited, total){
-  if(total>0 && visited>=total) return {icon:'🏆', label:'全地点踏破'};
-  return BADGE_TIERS.find(t=>visited>=t.min) || BADGE_TIERS[BADGE_TIERS.length-1];
+// 「コレクション」は種類ごとの制覇状況を表す。新しいコレクションを増やしたいときは、
+// この配列に1エントリ足すだけでよい（match関数がDATA上の項目を判定する）。
+const COLLECTION_TRACKS = [
+  {
+    key: 'place', icon: '🗺️', label: '地名踏破', unitLabel: '地名',
+    match: e => e.type === 'place',
+    completeLabel: '全地点踏破',
+    tiers: [
+      {min:50, icon:'🕵️', label:'名探偵の相棒'},
+      {min:30, icon:'🏠', label:'ベイカー街の常連'},
+      {min:15, icon:'📖', label:'熱心な会員'},
+      {min:5,  icon:'🔍', label:'駆け出し捜査官'},
+      {min:1,  icon:'👣', label:'第一歩'},
+      {min:0,  icon:'🎩', label:'見習い'}
+    ]
+  },
+  {
+    key: 'canon', icon: '📖', label: '正典マスター', unitLabel: '正典作品',
+    match: e => e.type === 'work' && !!e.canon,
+    completeLabel: '正典60編制覇',
+    tiers: [
+      {min:30, icon:'🎓', label:'正典博士'},
+      {min:15, icon:'🕵️', label:'正典探求者'},
+      {min:5,  icon:'📚', label:'愛読者'},
+      {min:1,  icon:'📖', label:'開巻一歩'},
+      {min:0,  icon:'📕', label:'未読の見習い'}
+    ]
+  },
+  {
+    key: 'person', icon: '🎭', label: '人物図鑑', unitLabel: '人物',
+    match: e => e.type === 'person',
+    completeLabel: '人物図鑑コンプリート',
+    tiers: [
+      {min:6, icon:'🕵️', label:'名探偵気取り'},
+      {min:3, icon:'🤝', label:'顔なじみ'},
+      {min:1, icon:'👋', label:'初対面'},
+      {min:0, icon:'🎩', label:'未紹介'}
+    ]
+  },
+  {
+    key: 'term', icon: '📚', label: '用語事典', unitLabel: '用語',
+    match: e => e.type === 'term',
+    completeLabel: '用語事典コンプリート',
+    tiers: [
+      {min:2, icon:'🔍', label:'物知り'},
+      {min:1, icon:'📖', label:'興味津々'},
+      {min:0, icon:'❓', label:'初心者'}
+    ]
+  },
+  {
+    key: 'pastiche', icon: '🎨', label: 'パスティーシュ愛好家', unitLabel: '正典外作品',
+    match: e => e.type === 'work' && !e.canon,
+    completeLabel: 'パスティーシュ愛好家',
+    tiers: [
+      {min:2, icon:'🎨', label:'愛好家'},
+      {min:1, icon:'🎭', label:'興味あり'},
+      {min:0, icon:'📕', label:'未経験'}
+    ]
+  }
+]; // 各tiersはmin件数の降順。全件制覇は別枠（completeLabel）で判定する。
+function computeTrackProgress(track, myPosts){
+  const ids = new Set(myPosts.filter(j=>j.entityId && track.match(DATA[j.entityId]||{})).map(j=>j.entityId));
+  const count = ids.size;
+  const total = Object.values(DATA).filter(track.match).length;
+  const isComplete = total>0 && count>=total;
+  const badge = isComplete ? {icon:'🏆', label: track.completeLabel} : (track.tiers.find(t=>count>=t.min) || track.tiers[track.tiers.length-1]);
+  const nextTier = isComplete ? null : track.tiers.slice().reverse().find(t=>t.min>count);
+  return {count, total, isComplete, badge, nextTier};
+}
+function renderTrackCard(track, p){
+  const pct = p.total>0 ? Math.min(100, Math.round(p.count/p.total*100)) : 0;
+  const nextHtml = p.isComplete
+    ? `<div class="mybook-badge-next">全${p.total}${track.unitLabel}を制覇しました！</div>`
+    : (p.nextTier ? `<div class="mybook-badge-next">あと${p.nextTier.min-p.count}件で「${p.nextTier.label}」</div>` : '');
+  return `
+    <div class="mybook-stats">
+      <div class="mybook-track-head">${track.icon} ${track.label}</div>
+      <div class="mybook-badge-row"><span class="mybook-badge-icon">${p.badge.icon}</span><div><div class="mybook-badge-label">${p.badge.label}</div>${nextHtml}</div></div>
+      <div class="mybook-progress-bar"><div class="mybook-progress-fill" style="width:${pct}%"></div></div>
+      <div class="mybook-numbers"><div><strong>${p.count}</strong>／${p.total} ${track.unitLabel}</div></div>
+    </div>`;
 }
 function renderMyBook(){
   if(!currentUser){
@@ -2750,28 +2833,14 @@ function renderMyBook(){
     return;
   }
   const myPosts = journal.filter(j=>j.authorId===currentUser.id).concat(privateNotes).sort((a,b)=>b.createdAt-a.createdAt);
-  // 作品・人物・用語への感想投稿も同じjournalに入るため、踏破率には地名のものだけを数える
-  const visitedIds = new Set(myPosts.filter(j=>j.entityId && DATA[j.entityId]?.type==='place').map(j=>j.entityId));
-  const visitedCount = visitedIds.size;
-  const totalPlaces = Object.values(DATA).filter(e=>e.type==='place').length;
-  const pct = totalPlaces>0 ? Math.min(100, Math.round(visitedCount/totalPlaces*100)) : 0;
   const likeTotal = myPosts.reduce((s,j)=>s+((j.likedBy||[]).length), 0);
-  const badge = badgeForCount(visitedCount, totalPlaces);
-  const isComplete = totalPlaces>0 && visitedCount>=totalPlaces;
-  const nextTier = isComplete ? null : BADGE_TIERS.slice().reverse().find(t=>t.min>visitedCount);
-  const nextHtml = isComplete
-    ? `<div class="mybook-badge-next">全${totalPlaces}地名を踏破しました！</div>`
-    : (nextTier ? `<div class="mybook-badge-next">あと${nextTier.min-visitedCount}件の地名を訪れると「${nextTier.label}」</div>` : '');
-  const statsHtml = `
-    <div class="mybook-stats">
-      <div class="mybook-badge-row"><span class="mybook-badge-icon">${badge.icon}</span><div><div class="mybook-badge-label">${badge.label}</div>${nextHtml}</div></div>
-      <div class="mybook-progress-bar"><div class="mybook-progress-fill" style="width:${pct}%"></div></div>
-      <div class="mybook-numbers">
-        <div><strong>${visitedCount}</strong>／${totalPlaces} 訪問済み地名</div>
-        <div><strong>${myPosts.length}</strong> 投稿数</div>
-        <div><strong>${likeTotal}</strong> いいねを獲得</div>
-      </div>
+  const summaryHtml = `
+    <div class="mybook-numbers" style="margin-bottom:16px;">
+      <div><strong>${myPosts.length}</strong> 投稿数</div>
+      <div><strong>${likeTotal}</strong> いいねを獲得</div>
     </div>`;
+  const tracksHtml = COLLECTION_TRACKS.map(t=>renderTrackCard(t, computeTrackProgress(t, myPosts))).join('');
+  const statsHtml = summaryHtml + tracksHtml;
   const listHtml = myPosts.length ? myPosts.map(j=>{
     const label = j.entityId ? (DATA[j.entityId]?.name || j.placeName) : j.placeName + '　<span class="empty-msg">（アトラス未登録）</span>';
     return `<div class="journal-card" data-tl-entity="${j.entityId||''}" data-tl-lat="${j.coords?j.coords[0]:''}" data-tl-lng="${j.coords?j.coords[1]:''}" style="cursor:pointer;">

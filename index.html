@@ -172,6 +172,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .map-jump-main-btn svg{width:14px;height:14px;}
 
 .note-section{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;}
+.note-locked{font-size:.85rem;color:var(--slate);}
 .note-section h4{font-weight:600;font-size:.83rem;color:var(--slate);margin:0 0 10px;}
 .stars{display:flex;gap:4px;margin-bottom:10px;}
 .star-btn{background:none;border:none;font-size:1.3rem;line-height:1;cursor:pointer;color:var(--line);padding:0;}
@@ -1797,6 +1798,13 @@ function goToMap(id){
 
 // ---------- 個人メモ（★評価・訪問日・所有版・自由記述） ----------
 function renderNoteSection(id){
+  if(!currentUser){
+    return `
+    <div class="note-section">
+      <h4>個人メモ</h4>
+      <div class="note-locked">ログインすると、★評価やメモを書き込めます。<button class="link-btn" id="noteLoginPrompt">ログイン</button></div>
+    </div>`;
+  }
   const n = personalNotes[id] || {};
   const rating = n.rating || 0;
   const stars = [1,2,3,4,5].map(i=>`<button type="button" class="star-btn ${i<=rating?'filled':''}" data-star="${i}">★</button>`).join('');
@@ -1811,6 +1819,10 @@ function renderNoteSection(id){
     </div>`;
 }
 function wireNoteSection(id){
+  if(!currentUser){
+    document.getElementById('noteLoginPrompt')?.addEventListener('click', ()=>openAuthModal('login'));
+    return;
+  }
   let currentRating = (personalNotes[id]||{}).rating || 0;
   const starsEl = document.getElementById('noteStars');
   starsEl.querySelectorAll('.star-btn').forEach(btn=>{

@@ -405,7 +405,10 @@ function openAuthModal(mode){
   document.getElementById('auth-switch').addEventListener('click', ()=>openAuthModal(isSignup ? 'login' : 'signup'));
   document.getElementById('auth-forgot')?.addEventListener('click', openForgotPasswordModal);
   document.getElementById('auth-google').addEventListener('click', async ()=>{
-    const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://koumori1422.github.io/holmes-atlas-public/' }
+    });
     if(error) showToast('Googleログインに失敗しました：' + error.message);
   });
   document.getElementById('auth-submit').addEventListener('click', async ()=>{

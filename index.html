@@ -23,7 +23,7 @@
 html,body{margin:0;padding:0;height:100%;background:var(--ink);font-family:'Crimson Pro',serif;color:var(--fog);}
 button,input,select,textarea{font-family:'Crimson Pro',serif;}
 
-.app{display:grid;grid-template-columns:260px 1fr;grid-template-rows:56px 1fr;height:100vh;}
+.app{display:grid;grid-template-columns:260px 1fr;grid-template-rows:minmax(56px,auto) 1fr;height:100vh;}
 .header{grid-column:1/3;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--ink-2);border-bottom:1px solid var(--line);}
 .seal{width:24px;height:24px;flex:none;}
 .header h1{font-family:'Playfair Display',serif;font-weight:600;font-style:italic;font-size:1.05rem;color:var(--parchment);margin:0;}

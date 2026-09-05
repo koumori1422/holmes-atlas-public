@@ -1738,6 +1738,7 @@ function showEntity(id, opts={}){
   });
   panelContent.querySelectorAll('.desc-link-ambiguous').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(!isReviewer()){ showToast('リンク先の確定は審査担当者のみ行えます。'); return; }
       const seg = ambiguousLinkRegistry[parseInt(btn.dataset.ambIdx)];
       openDisambiguateModal(id, seg.token, seg.candidates, seg.display);
     });

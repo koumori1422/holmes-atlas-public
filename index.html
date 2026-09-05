@@ -195,7 +195,6 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .journal-card{background:#fff;border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin-bottom:10px;}
 .journal-card img{width:100%;max-height:160px;object-fit:cover;border-radius:3px;margin-bottom:8px;display:block;}
 .journal-card .jc-place{font-weight:600;font-size:.9rem;color:var(--ink);margin-bottom:3px;}
-.journal-card .jc-stars{color:var(--brass);font-size:.85rem;margin-bottom:4px;}
 .journal-card .jc-comment{font-size:.88rem;line-height:1.6;margin:0 0 6px;white-space:pre-wrap;}
 .journal-card .jc-meta{font-size:.74rem;color:var(--slate);}
 .journal-card .jc-actions{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;}
@@ -359,6 +358,12 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 
 // ---------- 会員ログイン ----------
 let currentUser = null;
+// 個人メモ（★評価・訪問日・所有版・自由記述・お気に入り）は会員ごとに保存する。
+// 会員本人しかキー（p-notes:<自分のuser id>）を知らないので、他の会員のメモを上書きしてしまうことはない。
+let personalNotes = {}; // { entityId: {rating, visitedDate, ownedEdition, notes, favorite} }
+function notesStorageKey(){
+  return currentUser ? ('p-notes:' + currentUser.id) : null;
+}
 function getDisplayName(user){
   if(!user) return '';
   const m = user.user_metadata || {};
@@ -508,9 +513,10 @@ function openSetNewPasswordModal(){
     showToast('パスワードを変更しました。');
   });
 }
-supabaseClient.auth.onAuthStateChange((event, session)=>{
+supabaseClient.auth.onAuthStateChange(async (event, session)=>{
   if(event === 'PASSWORD_RECOVERY'){ openSetNewPasswordModal(); return; }
   currentUser = session?.user || null;
+  personalNotes = (await safeGet(notesStorageKey())) || {};
   renderAuthArea();
 });
 
@@ -1070,13 +1076,14 @@ const NEW_ENTITY_TYPES = ["place","person","work","term"];
 // ---------- 永続ストレージ（すべて自分専用＝shared:false） ----------
 let overrides = {};   // { entityId: {name?, desc?, image?, coords?, extraRelated?:[]} }
 let additions = {};   // { newId: {type,name,desc,image,coords,related:[]} }
-let personalNotes = {}; // { entityId: {rating, visitedDate, ownedEdition, notes} }
-let journal = [];     // [{id, entityId, placeName, coords, rating, comment, image, visitedDate, createdAt}]
+// personalNotesは会員ごとに保存するため、上（会員ログインのセクション）で宣言済み。
+let journal = [];     // [{id, entityId, placeName, coords, comment, image, visitedDate, createdAt}]
 let customAliases = {}; // { 正規化されたカタカナキー: "英語表記" } — サイト上で追加できる地名対応辞書
 let proposals = [];   // [{id, kind:'new'|'edit', targetType, targetId, draft, authorId, authorName, status, createdAt, reviewNote}]
 let reports = [];     // [{id, journalId, reason, reporterId, reporterName, status, createdAt}]
 
 async function safeGet(key){
+  if(!key) return null;
   try{
     const { data, error } = await supabaseClient.from('atlas_data').select('value').eq('key', key).maybeSingle();
     if(error || !data) return null;
@@ -1084,6 +1091,7 @@ async function safeGet(key){
   }catch(e){ return null; }
 }
 async function safeSet(key, value){
+  if(!key) return false;
   try{
     const { error } = await supabaseClient.from('atlas_data').upsert({ key, value, updated_at: new Date().toISOString() });
     if(error){ console.error(error); showToast('保存に失敗しました。'); return false; }
@@ -1092,7 +1100,7 @@ async function safeSet(key, value){
 }
 async function loadAll(){
   const [ov, add, notes, jour, aliases, props, reps] = await Promise.all([
-    safeGet('p-overrides'), safeGet('p-additions'), safeGet('p-notes'), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals'), safeGet('p-reports')
+    safeGet('p-overrides'), safeGet('p-additions'), safeGet(notesStorageKey()), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals'), safeGet('p-reports')
   ]);
   overrides = ov || {};
   additions = add || {};
@@ -1852,7 +1860,7 @@ function showEntity(id, opts={}){
     if(!currentUser){ showToast('お気に入り登録にはログインが必要です。'); return; }
     personalNotes[id] = personalNotes[id] || {};
     personalNotes[id].favorite = !personalNotes[id].favorite;
-    await safeSet('p-notes', personalNotes);
+    await safeSet(notesStorageKey(), personalNotes);
     showEntity(id, {fromTrail:true});
     renderIndex();
   });
@@ -1947,7 +1955,7 @@ function wireNoteSection(id){
       ownedEdition: document.getElementById('noteEdition').value.trim(),
       notes: document.getElementById('noteText').value.trim()
     });
-    await safeSet('p-notes', personalNotes);
+    await safeSet(notesStorageKey(), personalNotes);
     showToast('メモを保存しました。');
   });
 }
@@ -2402,7 +2410,7 @@ async function deleteEntity(targetId){
     await safeSet('p-overrides', overrides);
   }
   delete personalNotes[targetId];
-  await safeSet('p-notes', personalNotes);
+  await safeSet(notesStorageKey(), personalNotes);
   DATA = buildData();
   renderMarkers(); renderIndex();
   panel.classList.remove('open');
@@ -2500,7 +2508,6 @@ function renderEntityJournalSection(entityId){
     </div>`;
 }
 function renderJournalCard(j){
-  const stars = j.rating ? '★'.repeat(j.rating) + '☆'.repeat(5-j.rating) : '';
   const liked = currentUser && (j.likedBy||[]).includes(currentUser.id);
   const likeCount = (j.likedBy||[]).length;
   const canDelete = currentUser && (currentUser.id === j.authorId || isReviewer());
@@ -2508,7 +2515,6 @@ function renderJournalCard(j){
   return `
     <div class="journal-card" data-journal-id="${j.id}">
       ${j.image ? `<img src="${escapeAttr(j.image)}" alt="">` : ''}
-      ${stars ? `<div class="jc-stars">${stars}</div>` : ''}
       <p class="jc-comment">${escapeHtml(j.comment)}</p>
       <div class="jc-meta">${j.authorName ? escapeHtml(j.authorName)+' ・ ' : ''}${j.visitedDate?('訪問日: '+escapeHtml(j.visitedDate)+' ・ '):''}${fmtDate(j.createdAt)}</div>
       <div class="jc-actions">
@@ -2538,7 +2544,6 @@ function openJournalModal(prefill){
       <div class="geo-row"><input type="text" id="j-geo-query" placeholder="地名で検索"><button type="button" class="geo-search-btn" id="j-geo-search">検索</button></div>
       <div class="geo-results" id="j-geo-results"></div>
     </div>` : ''}
-    <div class="field"><label>評価</label><div class="stars" id="jStars">${[1,2,3,4,5].map(i=>`<button type="button" class="star-btn" data-star="${i}">★</button>`).join('')}</div></div>
     <div class="field"><label>訪問日（任意）</label><input type="date" id="j-date"></div>
     <div class="field"><label>コメント</label><textarea id="j-comment" placeholder="感想や発見したことなど"></textarea></div>
     <div class="field"><label>写真（任意）</label>
@@ -2549,14 +2554,6 @@ function openJournalModal(prefill){
     <div class="modal-actions"><button class="modal-cancel" id="j-cancel">キャンセル</button><button class="modal-submit" id="j-submit">保存する</button></div>`;
   overlay.classList.add('open');
   wireImageUpload('j-image-file','j-image-preview', d=>uploadedImageData=d);
-  let currentRating = 0;
-  const starsEl = document.getElementById('jStars');
-  starsEl.querySelectorAll('.star-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      currentRating = (currentRating===parseInt(btn.dataset.star)) ? 0 : parseInt(btn.dataset.star);
-      starsEl.querySelectorAll('.star-btn').forEach(b=>b.classList.toggle('filled', parseInt(b.dataset.star)<=currentRating));
-    });
-  });
   if(!prefill.entityId){
     document.getElementById('j-geo-search').addEventListener('click', async ()=>{
       const q = document.getElementById('j-geo-query').value.trim();
@@ -2589,7 +2586,6 @@ function openJournalModal(prefill){
       id: 'j-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
       entityId: prefill.entityId || null,
       placeName: name, coords,
-      rating: currentRating,
       visitedDate: document.getElementById('j-date').value,
       comment,
       image: uploadedImageData || document.getElementById('j-image').value.trim() || null,

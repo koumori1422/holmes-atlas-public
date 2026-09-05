@@ -2738,11 +2738,11 @@ function renderSearchResults(localIds, externalResults, query){
   mapSearchResults.innerHTML = html;
   mapSearchResults.classList.add('show');
   mapSearchResults.querySelectorAll('[data-local]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ saveRecentSearch(query); showEntity(btn.dataset.local); mapSearchResults.classList.remove('show'); mapSearchInput.value=''; });
+    btn.addEventListener('click', ()=>{ saveRecentSearch(DATA[btn.dataset.local].name); showEntity(btn.dataset.local); mapSearchResults.classList.remove('show'); mapSearchInput.value=''; });
   });
   if(externalResults){
     mapSearchResults.querySelectorAll('[data-ext]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{ saveRecentSearch(query); selectExternalLocation(externalResults[parseInt(btn.dataset.ext)]); mapSearchResults.classList.remove('show'); });
+      btn.addEventListener('click', ()=>{ saveRecentSearch(externalResults[parseInt(btn.dataset.ext)].display_name); selectExternalLocation(externalResults[parseInt(btn.dataset.ext)]); mapSearchResults.classList.remove('show'); });
     });
   }
   const aliasBtn = document.getElementById('aliasRegisterBtn');
@@ -2850,7 +2850,6 @@ mapSearchClearBtn.addEventListener('click', ()=>{
 document.getElementById('mapSearchBtn').addEventListener('click', async ()=>{
   const q = mapSearchInput.value.trim();
   if(!q) return;
-  saveRecentSearch(q);
   const results = await geocodeSearch(q);
   renderSearchResults(localMatches(q), results===null ? undefined : results, q);
 });

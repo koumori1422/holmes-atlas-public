@@ -2705,8 +2705,14 @@ function selectExternalLocation(r){
   </div>`;
   externalMarker.bindPopup(popupEl).openPopup();
   externalMarker.once('popupopen', ()=>{
-    document.getElementById('addFromSearchBtn').addEventListener('click', ()=>openEntityModal({name:shortName, lat, lng}));
-    document.getElementById('journalFromSearchBtn').addEventListener('click', ()=>openJournalModal({name:shortName, lat, lng}));
+    document.getElementById('addFromSearchBtn').addEventListener('click', ()=>{
+      if(!currentUser){ showToast('新しい項目の追加にはログインが必要です。'); return; }
+      openEntityModal({name:shortName, lat, lng});
+    });
+    document.getElementById('journalFromSearchBtn').addEventListener('click', ()=>{
+      if(!currentUser){ showToast('訪問記録の投稿にはログインが必要です。'); return; }
+      openJournalModal({name:shortName, lat, lng});
+    });
   });
 }
 let searchDebounce;

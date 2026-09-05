@@ -2703,7 +2703,7 @@ function selectExternalLocation(r){
     <button type="button" class="search-popup-btn" id="addFromSearchBtn">新しい地名として追加</button>
     <button type="button" class="search-popup-btn" id="journalFromSearchBtn" style="background:var(--teal);margin-top:6px;">訪問記録だけ残す</button>
   </div>`;
-  externalMarker.bindPopup(popupEl).openPopup();
+  externalMarker.bindPopup(popupEl);
   externalMarker.once('popupopen', ()=>{
     document.getElementById('addFromSearchBtn').addEventListener('click', ()=>{
       if(!currentUser){ showToast('新しい項目の追加にはログインが必要です。'); return; }
@@ -2714,6 +2714,7 @@ function selectExternalLocation(r){
       openJournalModal({name:shortName, lat, lng});
     });
   });
+  externalMarker.openPopup();
 }
 let searchDebounce;
 const mapSearchClearBtn = document.getElementById('mapSearchClearBtn');

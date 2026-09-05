@@ -258,6 +258,17 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .timeline h2{font-family:'Playfair Display',serif;font-size:1.5rem;margin:4px 0 4px;color:var(--ink);}
 .timeline-note{font-size:.85rem;opacity:.7;margin-bottom:18px;}
 
+.mybook-stats{background:var(--parchment-2);border:1px solid var(--line);border-radius:5px;padding:16px 18px;margin-bottom:20px;}
+.mybook-badge-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+.mybook-badge-icon{font-size:1.9rem;line-height:1;}
+.mybook-badge-label{font-family:'Playfair Display',serif;font-size:1.15rem;color:var(--ink);}
+.mybook-badge-next{font-size:.76rem;opacity:.65;margin-top:2px;}
+.mybook-progress-bar{background:#fff;border:1px solid var(--line);border-radius:20px;height:10px;overflow:hidden;margin:6px 0 12px;}
+.mybook-progress-fill{background:var(--teal);height:100%;border-radius:20px;transition:width .4s;}
+.mybook-numbers{display:flex;gap:22px;flex-wrap:wrap;font-size:.78rem;color:var(--slate);}
+.mybook-numbers strong{display:block;font-size:1.35rem;color:var(--ink);font-family:'Playfair Display',serif;font-weight:600;}
+.mybook-section-label{font-weight:600;color:var(--slate);margin:0 0 10px;font-size:.85rem;}
+
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink-2);color:var(--parchment);padding:10px 20px;border-radius:4px;border:1px solid var(--brass);font-size:.88rem;z-index:3000;opacity:0;pointer-events:none;transition:opacity .25s ease;}
 .lightbox-overlay{position:fixed;inset:0;background:rgba(10,13,18,.92);display:none;align-items:center;justify-content:center;z-index:5000;padding:30px;cursor:zoom-out;}
 .lightbox-overlay.open{display:flex;}
@@ -324,6 +335,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       <div id="panelContent"></div>
     </div>
     <div class="timeline" id="timeline"></div>
+    <div class="timeline" id="myBook"></div>
   </div>
 </div>
 
@@ -368,12 +380,18 @@ function renderAuthArea(){
   if(currentUser){
     const name = getDisplayName(currentUser);
     const reviewBtn = isReviewer() ? `<button class="hbtn primary" id="reviewDashBtn">審査ダッシュボード<span class="review-count-badge" id="reviewCountBadge"></span></button>` : '';
-    el.innerHTML = `${reviewBtn}<span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="editNameBtn">名前を変更</button><button class="hbtn" id="logoutBtn">ログアウト</button>`;
+    el.innerHTML = `${reviewBtn}<button class="hbtn" id="myBookBtn">📔 マイ巡礼手帳</button><span class="auth-name">${escapeHtml(name)}さん</span><button class="hbtn" id="editNameBtn">名前を変更</button><button class="hbtn" id="logoutBtn">ログアウト</button>`;
     document.getElementById('logoutBtn').addEventListener('click', async ()=>{
       await supabaseClient.auth.signOut();
     });
     document.getElementById('editNameBtn').addEventListener('click', openEditNameModal);
     document.getElementById('reviewDashBtn')?.addEventListener('click', openReviewDashboard);
+    document.getElementById('myBookBtn').addEventListener('click', ()=>{
+      panel.classList.remove('open');
+      timelineEl.classList.remove('open');
+      myBookEl.classList.toggle('open');
+      if(myBookEl.classList.contains('open')) renderMyBook();
+    });
     updateReviewCountBadge();
   } else {
     el.innerHTML = `<button class="hbtn" id="loginBtn">ログイン</button><button class="hbtn" id="signupBtn">会員登録</button>`;
@@ -1728,6 +1746,7 @@ function showEntity(id, opts={}){
   const e = DATA[id];
   if(!e) return;
   document.getElementById('timeline').classList.remove('open');
+  document.getElementById('myBook').classList.remove('open');
   if(!opts.fromTrail){ trail = trail.filter(t=>t!==id); trail.push(id); if(trail.length>6) trail.shift(); }
   document.querySelectorAll('.index-item').forEach(b=>b.classList.toggle('active', b.dataset.id===id));
   if(e.type==='place' && e.coords){
@@ -1872,6 +1891,7 @@ function goToMap(id){
   if(!e || !e.coords) return;
   panel.classList.remove('open');
   document.getElementById('timeline').classList.remove('open');
+  document.getElementById('myBook').classList.remove('open');
   const m = markers[id];
   if(m && markerClusterGroup.hasLayer(m)){
     markerClusterGroup.zoomToShowLayer(m, ()=>{ m.openTooltip(); });
@@ -2595,6 +2615,7 @@ function refreshJournalViews(){
   renderJournalMarkers();
   if(panel.classList.contains('open') && trail.length) showEntity(trail[trail.length-1], {fromTrail:true});
   if(timelineEl.classList.contains('open')) renderTimeline();
+  if(myBookEl.classList.contains('open')) renderMyBook();
 }
 async function deleteJournal(id){
   const j = journal.find(x=>x.id===id);
@@ -2664,6 +2685,7 @@ function openJournalDetail(id){
 const timelineEl = document.getElementById('timeline');
 document.getElementById('timelineToggle').addEventListener('click', ()=>{
   panel.classList.remove('open');
+  myBookEl.classList.remove('open');
   timelineEl.classList.toggle('open');
   if(timelineEl.classList.contains('open')) renderTimeline();
 });
@@ -2683,6 +2705,71 @@ function renderTimeline(){
       if(ev.target.closest('[data-del-journal]')) return;
       const eid = card.dataset.tlEntity;
       timelineEl.classList.remove('open');
+      if(eid) showEntity(eid);
+      else if(card.dataset.tlLat){
+        const c=[parseFloat(card.dataset.tlLat), parseFloat(card.dataset.tlLng)];
+        map.flyTo(c, zoomForCoords(c,null), {duration:0.7});
+      }
+    });
+  });
+}
+
+// ---------- マイ巡礼手帳 ----------
+const myBookEl = document.getElementById('myBook');
+const BADGE_TIERS = [
+  {min:50, icon:'🕵️', label:'名探偵の相棒'},
+  {min:30, icon:'🏠', label:'ベイカー街の常連'},
+  {min:15, icon:'📖', label:'熱心な会員'},
+  {min:5,  icon:'🔍', label:'駆け出し捜査官'},
+  {min:1,  icon:'👣', label:'第一歩'},
+  {min:0,  icon:'🎩', label:'見習い'}
+]; // min件数の降順。全地点踏破は別枠で判定する。
+function badgeForCount(visited, total){
+  if(total>0 && visited>=total) return {icon:'🏆', label:'全地点踏破'};
+  return BADGE_TIERS.find(t=>visited>=t.min) || BADGE_TIERS[BADGE_TIERS.length-1];
+}
+function renderMyBook(){
+  if(!currentUser){
+    myBookEl.innerHTML = `<button class="timeline-close" id="myBookClose">×</button><h2>マイ巡礼手帳</h2><p class="empty-msg">ログインすると、自分の訪問記録と踏破状況がここにまとまります。</p>`;
+    document.getElementById('myBookClose').addEventListener('click', ()=>myBookEl.classList.remove('open'));
+    return;
+  }
+  const myPosts = journal.filter(j=>j.authorId===currentUser.id).sort((a,b)=>b.createdAt-a.createdAt);
+  const visitedIds = new Set(myPosts.filter(j=>j.entityId).map(j=>j.entityId));
+  const visitedCount = visitedIds.size;
+  const totalPlaces = Object.values(DATA).filter(e=>e.type==='place').length;
+  const pct = totalPlaces>0 ? Math.min(100, Math.round(visitedCount/totalPlaces*100)) : 0;
+  const likeTotal = myPosts.reduce((s,j)=>s+((j.likedBy||[]).length), 0);
+  const badge = badgeForCount(visitedCount, totalPlaces);
+  const isComplete = totalPlaces>0 && visitedCount>=totalPlaces;
+  const nextTier = isComplete ? null : BADGE_TIERS.slice().reverse().find(t=>t.min>visitedCount);
+  const nextHtml = isComplete
+    ? `<div class="mybook-badge-next">全${totalPlaces}地名を踏破しました！</div>`
+    : (nextTier ? `<div class="mybook-badge-next">あと${nextTier.min-visitedCount}件の地名を訪れると「${nextTier.label}」</div>` : '');
+  const statsHtml = `
+    <div class="mybook-stats">
+      <div class="mybook-badge-row"><span class="mybook-badge-icon">${badge.icon}</span><div><div class="mybook-badge-label">${badge.label}</div>${nextHtml}</div></div>
+      <div class="mybook-progress-bar"><div class="mybook-progress-fill" style="width:${pct}%"></div></div>
+      <div class="mybook-numbers">
+        <div><strong>${visitedCount}</strong>／${totalPlaces} 訪問済み地名</div>
+        <div><strong>${myPosts.length}</strong> 投稿数</div>
+        <div><strong>${likeTotal}</strong> いいねを獲得</div>
+      </div>
+    </div>`;
+  const listHtml = myPosts.length ? myPosts.map(j=>{
+    const label = j.entityId ? (DATA[j.entityId]?.name || j.placeName) : j.placeName + '　<span class="empty-msg">（アトラス未登録）</span>';
+    return `<div class="journal-card" data-tl-entity="${j.entityId||''}" data-tl-lat="${j.coords?j.coords[0]:''}" data-tl-lng="${j.coords?j.coords[1]:''}" style="cursor:pointer;">
+      <div class="jc-place">${label}</div>
+      ${renderJournalCard(j)}
+    </div>`;
+  }).join('') : '<p class="empty-msg">まだ訪問記録がありません。「＋ 訪問記録を追加」から書いてみましょう。</p>';
+  myBookEl.innerHTML = `<button class="timeline-close" id="myBookClose">×</button><h2>マイ巡礼手帳</h2><div class="mybook-section-label">${escapeHtml(getDisplayName(currentUser))}さんの記録</div>${statsHtml}<div>${listHtml}</div>`;
+  document.getElementById('myBookClose').addEventListener('click', ()=>myBookEl.classList.remove('open'));
+  myBookEl.querySelectorAll('[data-tl-entity]').forEach(card=>{
+    card.addEventListener('click', (ev)=>{
+      if(ev.target.closest('[data-del-journal],[data-like-journal],[data-reply-toggle],[data-reply-submit],[data-report-journal],.jc-reply-form')) return;
+      const eid = card.dataset.tlEntity;
+      myBookEl.classList.remove('open');
       if(eid) showEntity(eid);
       else if(card.dataset.tlLat){
         const c=[parseFloat(card.dataset.tlLat), parseFloat(card.dataset.tlLng)];

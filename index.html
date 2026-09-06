@@ -399,7 +399,6 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 <!-- メイン地図の日本語ラベル化のためのMapbox一式（任意。MAPBOX_TOKEN未設定時は使われず、従来通りOSM地図のみで動作します） -->
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.30.0/mapbox-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mapbox-gl-leaflet@0.0.16/leaflet-mapbox-gl.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mapbox/mapbox-gl-language@1.0.1/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ---------- Supabase設定 ----------
@@ -1832,6 +1831,10 @@ function tryAddMapboxBasemap(){
     mapboxGlLayer = L.mapboxGL({
       accessToken: MAPBOX_TOKEN,
       style: 'mapbox://styles/mapbox/streets-v12',
+      // Mapbox GL JS本体に組み込まれている言語指定機能（v2.11以降、classicスタイルにも対応）。
+      // 以前使っていたmapbox-gl-languageプラグインは、streets-v12の内部構造と噛み合わず
+      // エラーも出さずに何も変えない状態だったため、公式サポートのこちらの方式に切り替えた。
+      language: 'ja',
       attribution: '&copy; <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
     }).addTo(map);
     usingMapboxBasemap = true;
@@ -1843,10 +1846,15 @@ function tryAddMapboxBasemap(){
       // なっていた不具合の修正：Mapbox側の読み込み完了もここでカウントする。
       tilesLoaded++;
       if(tilesErrored===0) mapStatusEl.classList.remove('show');
+      // コンストラクタのlanguageオプションだけでも効くはずだが、念のため明示的にも呼んでおく。
       try{
-        glMap.addControl(new MapboxLanguage({ defaultLanguage: 'ja' }));
-        console.log('[holmes-atlas] MapboxLanguage(ja)を適用しました');
-      }catch(e){ console.error('MapboxLanguageの適用に失敗しました:', e); }
+        if(typeof glMap.setLanguage === 'function'){
+          glMap.setLanguage('ja');
+          console.log('[holmes-atlas] setLanguage(ja)を適用しました');
+        } else {
+          console.warn('[holmes-atlas] このMapbox GL JSのバージョンにはsetLanguageがありません');
+        }
+      }catch(e){ console.error('setLanguage(ja)の適用に失敗しました:', e); }
     });
     glMap.on('idle', ()=>{
       // styleとタイルの初回描画が完全に落ち着いたタイミング。読み込み完了の合図として

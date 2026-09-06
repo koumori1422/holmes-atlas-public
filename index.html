@@ -126,7 +126,10 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .nearby-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;background:#fff;border:none;border-bottom:1px solid var(--line);padding:9px 14px;font-size:.85rem;color:var(--charcoal);cursor:pointer;}
 .nearby-item:hover{background:#f7ecd0;}
 .nearby-item .ni-dist{font-size:.72rem;opacity:.6;white-space:nowrap;margin-left:8px;}
-.leaflet-holmes-icon{background:var(--brass);border:2px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5);}
+/* 地図タイル自体が明るいベージュ系の色合いのため、以前の金茶色(--brass)だと
+   背景に紛れて見つけにくかった。UIの他の部分（ヘッダーやボタン）と同じ濃紺
+   (--ink-2)にして、コントラストをはっきりさせる */
+.leaflet-holmes-icon{background:var(--ink-2);border:2px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5);}
 .holmes-cluster-icon{background:transparent;}
 .cluster-icon-inner{width:34px;height:34px;border-radius:50%;background:var(--brass);border:2px solid var(--parchment);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Crimson Pro',serif;font-weight:700;font-size:.92rem;box-shadow:0 1px 4px rgba(0,0,0,.5);}
 /* 検索・索引で選んだ項目が、ズームアウトして他のピンと合体したクラスタの中に

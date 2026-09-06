@@ -1221,6 +1221,16 @@ async function loadAll(){
   reports = reps || [];
 }
 
+// メイン画像のクレジット系フィールドをマージする。
+// ・ov側でそのフィールドを明示していればそれを優先（画像は変えずクレジットだけ後から直す、というケースに対応）
+// ・ov側が画像自体を差し替えていて、かつクレジットは書いていない場合は「不明」＝nullにする
+//   （差し替え前の画像に付いていたクレジットを、新しい画像の説明として使い回してしまわないように）
+// ・ov側が画像に触れていなければ、元データのクレジットをそのまま使う
+function imgMetaMerge(field, ov, src){
+  if(ov[field] !== undefined) return ov[field];
+  if(ov.image) return null;
+  return src[field] || null;
+}
 function buildData(){
   const data = {};
   Object.keys(SEED).forEach(id=>{
@@ -1229,6 +1239,9 @@ function buildData(){
     data[id] = {
       type: base.type, name: ov.name || base.name, coords: ov.coords || base.coords || null,
       desc: ov.desc || base.desc, image: ov.image || base.image || null,
+      imageCredit: imgMetaMerge('imageCredit', ov, base),
+      imageLicense: imgMetaMerge('imageLicense', ov, base),
+      imageSourceUrl: imgMetaMerge('imageSourceUrl', ov, base),
       photos: [...((base.photos || (base.photoOld||base.photoNow ? [base.photoOld,base.photoNow].filter(Boolean) : [])) || []), ...(ov.extraPhotos||[])],
       canon: ov.canon !== undefined ? ov.canon : base.canon,
       relevance: ov.relevance || base.relevance || 'core',
@@ -1240,6 +1253,9 @@ function buildData(){
     data[id] = {
       type: a.type, name: ov.name || a.name, coords: ov.coords || a.coords || null,
       desc: ov.desc || a.desc, image: ov.image || a.image || null,
+      imageCredit: imgMetaMerge('imageCredit', ov, a),
+      imageLicense: imgMetaMerge('imageLicense', ov, a),
+      imageSourceUrl: imgMetaMerge('imageSourceUrl', ov, a),
       photos: [...((a.photos || (a.photoOld||a.photoNow ? [a.photoOld,a.photoNow].filter(Boolean) : [])) || []), ...(ov.extraPhotos||[])],
       canon: ov.canon !== undefined ? ov.canon : (a.canon !== undefined ? a.canon : true),
       relevance: ov.relevance || a.relevance || 'core',
@@ -1973,7 +1989,14 @@ function showEntity(id, opts={}){
     return `<span class="chip-wrap"><button class="chip" data-id="${rid}"><span class="dot dot-${entityClass(r)}"></span>${r.name}</button>${jump}</span>`;
   }).join('');
 
-  const legacyImgHtml = (!e.photos || !e.photos.length) && e.image ? `<img class="entity-img" src="${escapeAttr(e.image)}" alt="" loading="lazy">` : '';
+  const legacyImgCreditBits = [];
+  if(e.imageCredit) legacyImgCreditBits.push(escapeHtml(e.imageCredit));
+  if(e.imageLicense) legacyImgCreditBits.push(escapeHtml(e.imageLicense));
+  let legacyImgCreditLine = legacyImgCreditBits.join(' ／ ');
+  if(e.imageSourceUrl) legacyImgCreditLine += (legacyImgCreditLine?' ':'') + `<a href="${escapeAttr(e.imageSourceUrl)}" target="_blank" rel="noopener noreferrer">出典</a>`;
+  const legacyImgHtml = (!e.photos || !e.photos.length) && e.image
+    ? `<img class="entity-img" src="${escapeAttr(e.image)}" alt="" loading="lazy">${legacyImgCreditLine ? `<div class="photo-credit">${legacyImgCreditLine}</div>` : ''}`
+    : '';
   const imgHtml = renderPhotoGallery(e.photos, id) + legacyImgHtml;
   const gmapsIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>';
   const mapJumpHtml = (e.type==='place' && e.coords)
@@ -2103,7 +2126,7 @@ function openLegalModal(){
 
       <p><strong>利用規約</strong></p>
       <p>以下の行為を禁止します：法令に違反する行為／他者の著作権・肖像権・プライバシーその他の権利を侵害する行為／誹謗中傷・嫌がらせ・なりすまし／スパム的な投稿や、システムに過度な負荷をかける行為。これらに該当すると運営者が判断した投稿は、通知なく削除する場合があります。</p>
-      <p>投稿された地名解説等のオリジナルコンテンツは<a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>の下で公開されます。</p>
+      <p>地名解説・作品情報などの項目データ（新規追加・編集として投稿された内容）は<a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>の下で公開します。一方、訪問記録・感想・写真・返信など会員個人の投稿は、投稿者ご本人の著作物として扱い、CC BY 4.0の対象にはしません。本サイト上での表示・保存の目的でのみお預かりします。</p>
       <p>本サイトは個人開発のため、内容の正確性・サービスの継続性を保証しません。本サイトの利用により生じた損害について、運営者に故意または重大な過失がある場合を除き、責任を負いかねます。</p>
 
       <p><strong>プライバシーポリシー</strong></p>
@@ -2152,6 +2175,10 @@ function openEntityModal(prefill){
       <input type="file" class="file-input" id="f-image-file" accept="image/*">
       <input type="text" id="f-image" placeholder="https://..." style="margin-top:6px;">
       <div class="image-preview" id="f-image-preview"></div>
+      <div class="hint">Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。</div>
+      <input type="text" id="f-image-credit" placeholder="作者・提供元（任意）" style="margin-top:6px;">
+      <input type="text" id="f-image-license" placeholder="ライセンス（任意）例：CC BY-SA 4.0" style="margin-top:6px;">
+      <input type="text" id="f-image-source" placeholder="出典URL（任意）" style="margin-top:6px;">
     </div>
     <div class="field"><label>関連付ける項目（任意）</label><div class="checklist">${relatedChecklist(null)}</div></div>
     <div class="modal-actions"><button class="modal-cancel" id="f-cancel">キャンセル</button><button class="modal-submit" id="f-submit">追加する</button></div>`;
@@ -2167,7 +2194,7 @@ function openEntityModal(prefill){
   if(prefill) typeSelect.value='place';
   sync();
   wireImageUpload('f-image-file','f-image-preview', d=>uploadedImageData=d);
-  const newEntityDraftFields = ['f-type','f-name','f-desc','f-image','f-lat','f-lng','f-relevance','f-canon'];
+  const newEntityDraftFields = ['f-type','f-name','f-desc','f-image','f-image-credit','f-image-license','f-image-source','f-lat','f-lng','f-relevance','f-canon'];
   const newEntityDraft = loadDraft('newEntity', 'new');
   if(newEntityDraft){
     insertDraftBanner('.modal-sub', newEntityDraft, ()=>{
@@ -2210,7 +2237,11 @@ function openEntityModal(prefill){
     }
     const related = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
     const canon = type==='work' ? (document.getElementById('f-canon').value === 'true') : undefined;
-    const draft = {type, name, desc, image: uploadedImageData || document.getElementById('f-image').value.trim() || null, coords, canon, relevance, related};
+    const imageUrl = uploadedImageData || document.getElementById('f-image').value.trim() || null;
+    const imageCredit = document.getElementById('f-image-credit').value.trim() || null;
+    const imageLicense = document.getElementById('f-image-license').value.trim() || null;
+    const imageSourceUrl = document.getElementById('f-image-source').value.trim() || null;
+    const draft = {type, name, desc, image: imageUrl, imageCredit, imageLicense, imageSourceUrl, coords, canon, relevance, related};
     if(isReviewer()){
       const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
       additions[newId] = draft;
@@ -2257,6 +2288,10 @@ function openEditModal(targetId){
       <input type="file" class="file-input" id="f-image-file" accept="image/*">
       <input type="text" id="f-image" value="${e.image && !e.image.startsWith('data:') ? escapeAttr(e.image):''}" placeholder="https://...">
       <div class="image-preview" id="f-image-preview">${e.image?`<img src="${escapeAttr(e.image)}" alt="">`:''}</div>
+      <div class="hint">Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。画像を差し替えるときは、クレジットも合わせて更新してください。</div>
+      <input type="text" id="f-image-credit" value="${e.imageCredit?escapeAttr(e.imageCredit):''}" placeholder="作者・提供元（任意）" style="margin-top:6px;">
+      <input type="text" id="f-image-license" value="${e.imageLicense?escapeAttr(e.imageLicense):''}" placeholder="ライセンス（任意）例：CC BY-SA 4.0" style="margin-top:6px;">
+      <input type="text" id="f-image-source" value="${e.imageSourceUrl?escapeAttr(e.imageSourceUrl):''}" placeholder="出典URL（任意）" style="margin-top:6px;">
     </div>
     ${e.type==='place' ? `
     <div class="field">
@@ -2281,7 +2316,7 @@ function openEditModal(targetId){
     </div>` : ''}`;
   overlay.classList.add('open');
   wireImageUpload('f-image-file','f-image-preview', d=>uploadedImageData=d);
-  const editEntityDraftFields = ['f-name','f-desc','f-image'].concat(e.type==='place' ? ['f-lat','f-lng','f-relevance'] : []);
+  const editEntityDraftFields = ['f-name','f-desc','f-image','f-image-credit','f-image-license','f-image-source'].concat(e.type==='place' ? ['f-lat','f-lng','f-relevance'] : []);
   const editEntityDraft = loadDraft('editEntity', targetId);
   if(editEntityDraft){
     insertDraftBanner('.modal-sub', editEntityDraft, ()=>{
@@ -2316,8 +2351,14 @@ function openEditModal(targetId){
     const desc = document.getElementById('f-desc').value.trim();
     if(!name || !desc){ showToast('名称と説明文は必須です。'); return; }
     const img = uploadedImageData || document.getElementById('f-image').value.trim();
+    const imageCredit = document.getElementById('f-image-credit').value.trim();
+    const imageLicense = document.getElementById('f-image-license').value.trim();
+    const imageSourceUrl = document.getElementById('f-image-source').value.trim();
     const draft = { name, desc };
     if(img) draft.image = img;
+    if(imageCredit) draft.imageCredit = imageCredit;
+    if(imageLicense) draft.imageLicense = imageLicense;
+    if(imageSourceUrl) draft.imageSourceUrl = imageSourceUrl;
     if(e.type==='place'){
       const lat = parseFloat(document.getElementById('f-lat').value), lng = parseFloat(document.getElementById('f-lng').value);
       if(!isNaN(lat) && !isNaN(lng)) draft.coords = [lat,lng];
@@ -2491,6 +2532,10 @@ function renderProposalCard(p){
       <div><strong>種別：</strong>${TYPE_LABEL[p.targetType]||p.targetType}</div>
       <div><strong>名前：</strong>${escapeHtml(p.draft.name)}</div>
       <div><strong>説明：</strong>${escapeHtml(p.draft.desc)}</div>
+      ${p.draft.image ? `<img src="${escapeAttr(p.draft.image)}" alt="" style="max-width:180px;border-radius:3px;display:block;margin:6px 0;">` : ''}
+      ${p.draft.imageCredit ? `<div><strong>作者・提供元：</strong>${escapeHtml(p.draft.imageCredit)}</div>` : ''}
+      ${p.draft.imageLicense ? `<div><strong>ライセンス：</strong>${escapeHtml(p.draft.imageLicense)}</div>` : ''}
+      ${p.draft.imageSourceUrl ? `<div><strong>出典：</strong><a href="${escapeAttr(p.draft.imageSourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(p.draft.imageSourceUrl)}</a></div>` : ''}
     </div>`;
   } else if(p.kind==='photo'){
     detailHtml = `<div class="proposal-detail">
@@ -2503,6 +2548,10 @@ function renderProposalCard(p){
     detailHtml = `<div class="proposal-detail">
       ${p.draft.name ? `<div><strong>名前を変更：</strong>${escapeHtml(p.draft.name)}</div>` : ''}
       ${p.draft.desc ? `<div><strong>説明を変更：</strong>${escapeHtml(p.draft.desc)}</div>` : ''}
+      ${p.draft.image ? `<img src="${escapeAttr(p.draft.image)}" alt="" style="max-width:180px;border-radius:3px;display:block;margin:6px 0;">` : ''}
+      ${p.draft.imageCredit ? `<div><strong>作者・提供元：</strong>${escapeHtml(p.draft.imageCredit)}</div>` : ''}
+      ${p.draft.imageLicense ? `<div><strong>ライセンス：</strong>${escapeHtml(p.draft.imageLicense)}</div>` : ''}
+      ${p.draft.imageSourceUrl ? `<div><strong>出典：</strong><a href="${escapeAttr(p.draft.imageSourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(p.draft.imageSourceUrl)}</a></div>` : ''}
     </div>`;
   }
   return `<div class="proposal-card">

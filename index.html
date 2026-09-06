@@ -2128,7 +2128,7 @@ function openEntityModal(prefill){
   let uploadedImageData = null;
   modalBody.innerHTML = `
     <h3>新しい項目を追加</h3>
-    <div class="modal-sub">その場で即反映されます（審査なし）。</div>
+    <div class="modal-sub">${isReviewer() ? 'その場で即反映されます（審査なし）。' : '送信すると審査担当者の確認後に反映されます。'}</div>
     <div class="field"><label>種別</label><select id="f-type">${NEW_ENTITY_TYPES.map(t=>`<option value="${t}">${TYPE_LABEL[t]}</option>`).join('')}</select></div>
     <div class="field"><label>名称</label><input type="text" id="f-name" value="${prefill?escapeAttr(prefill.name):''}"></div>
     <div class="field" id="f-location-field" style="display:none;">
@@ -2250,7 +2250,7 @@ function openEditModal(targetId){
   let uploadedImageData = null;
   modalBody.innerHTML = `
     <h3>編集する — ${e.name}</h3>
-    <div class="modal-sub">保存するとその場で反映されます。</div>
+    <div class="modal-sub">${isReviewer() ? '保存するとその場で反映されます。' : '送信すると審査担当者の確認後に反映されます。'}</div>
     <div class="field"><label>名称</label><input type="text" id="f-name" value="${escapeAttr(e.name)}"></div>
     <div class="field"><label>新しい説明文</label><textarea id="f-desc">${escapeHtml(e.desc)}</textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります。</div></div>
     <div class="field"><label>画像（任意）</label>

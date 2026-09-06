@@ -2101,6 +2101,25 @@ coreOnlyBtn.addEventListener('click', ()=>{
 // 元々「この場所はどの作品に登場するか」がタグ付けされているので、
 // 新しいデータ構造は増やさずそのまま流用できる。
 let workFilter = null;
+// ネイティブの<select>は、appearance:noneで見た目を消しても「今選ばれている
+// 文字の長さ」ではなく「一覧の中で一番長い項目の長さ」に合わせて箱の幅が
+// 決まってしまう（ブラウザの標準仕様）。作品名の一覧には長いタイトルもあるため、
+// 短い項目（「作品選択」など）を選んでいるときに矢印マークとの間へ大きな
+// 余白ができてしまっていた。今選ばれている文字の実際の幅をこちらで測って
+// widthを直接指定することで、矢印マークが常に文字のすぐ横に来るようにする。
+const workFilterMeasureEl = document.createElement('span');
+workFilterMeasureEl.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;top:-9999px;left:-9999px;';
+document.body.appendChild(workFilterMeasureEl);
+function sizeWorkFilterSelect(){
+  const sel = document.getElementById('workFilterSelect');
+  if(!sel) return;
+  const opt = sel.options[sel.selectedIndex];
+  const text = opt ? opt.textContent : '';
+  workFilterMeasureEl.style.font = getComputedStyle(sel).font;
+  workFilterMeasureEl.textContent = text;
+  const w = workFilterMeasureEl.getBoundingClientRect().width;
+  sel.style.width = (Math.ceil(w) + 2) + 'px';
+}
 function populateWorkFilterSelect(){
   const sel = document.getElementById('workFilterSelect');
   if(!sel) return;
@@ -2131,12 +2150,18 @@ function populateWorkFilterSelect(){
   } else {
     sel.value = prevValue || '';
   }
+  sizeWorkFilterSelect();
 }
 const workFilterSelect = document.getElementById('workFilterSelect');
+sizeWorkFilterSelect();
+// Webフォント（Crimson Pro）の読み込み完了前に測ると幅がわずかにずれるため、
+// 読み込み完了後にもう一度測り直して微調整する。
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(sizeWorkFilterSelect); }
 workFilterSelect.addEventListener('change', ()=>{
   const v = workFilterSelect.value;
   workFilter = (v && v !== '__all__') ? v : null;
   workFilterSelect.classList.toggle('active', !!workFilter);
+  sizeWorkFilterSelect();
   renderMarkers();
   renderIndex();
   if(!workFilter) return;

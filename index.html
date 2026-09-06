@@ -139,6 +139,17 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
   .mt-select{max-width:96px;}
   .mt-door{margin:5px 3px 5px 4px;padding:0 9px;}
 }
+/* 一部の古い/小さめの機種（画面幅360px以下）ではここまでの調整でもまだ帯が
+   収まりきらないことがあったため、さらに一段階詰める。それでも収まりきらない
+   最小限のケース向けに、帯の中身だけ横スクロールできる保険は残してある。 */
+@media (max-width:360px){
+  .mt-seg{padding:0 4px;gap:3px;font-size:.72rem;}
+  .mt-seg .mt-ic,.mt-door .mt-ic{width:15px;height:15px;}
+  .mt-select-wrap{padding:0 14px 0 4px;}
+  .mt-select{max-width:40px;font-size:.72rem;}
+  .mt-chevron{right:4px;}
+  .mt-door{margin:5px 1px 5px 1px;padding:0 5px;font-size:.72rem;}
+}
 /* 現在地ボタン：帯（.map-controls-cluster）とは別の、帯のすぐ上に浮かぶ丸ボタン。
    帯と同じ真鍮パネル調の配色にして「同じ計器盤の仲間」だと分かるようにしつつ、
    帯の横幅には影響しないようにしている。追跡中は金色に光らせて状態を示す。 */
@@ -457,7 +468,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       <span class="mt-div"></span>
       <span class="mt-seg mt-select-wrap">
         <select class="mt-select" id="workFilterSelect" title="選んだ作品に登場する地点だけを地図に表示する">
-          <option value="">全作品表示</option>
+          <option value="" selected disabled hidden>作品選択</option>
+          <option value="__all__">全作品表示</option>
         </select>
         <svg class="mt-ic mt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </span>
@@ -2097,21 +2109,29 @@ function populateWorkFilterSelect(){
   canonWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
   pasticheWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
   const optHtml = ids => ids.map(id=>`<option value="${escapeAttr(id)}">${escapeHtml(DATA[id].name)}</option>`).join('');
-  sel.innerHTML = `<option value="">全作品表示</option>`
+  // 先頭の「作品選択」は、まだ何も選んでいないことを示すだけのプレースホルダー
+  // （disabled+hiddenなので一覧には出ず、選び直すこともできない）。
+  // 「全作品表示」はそれとは別の、実際に選べる一つの選択肢として並べている。
+  sel.innerHTML = `<option value="" disabled hidden>作品選択</option><option value="__all__">全作品表示</option>`
     + (canonWorks.length ? `<optgroup label="正典（コナン・ドイル）">${optHtml(canonWorks)}</optgroup>` : '')
     + (pasticheWorks.length ? `<optgroup label="正典外（パスティーシュ等）">${optHtml(pasticheWorks)}</optgroup>` : '');
   if(prevValue && DATA[prevValue] && DATA[prevValue].type==='work'){
     sel.value = prevValue;
+  } else if(prevValue === '__all__'){
+    sel.value = '__all__';
   } else if(workFilter){
     // 選択中だった作品がデータの入れ替えで無くなった場合は、絞り込みを解除する
     workFilter = null;
-    sel.value = '';
     sel.classList.remove('active');
+    sel.value = '';
+  } else {
+    sel.value = prevValue || '';
   }
 }
 const workFilterSelect = document.getElementById('workFilterSelect');
 workFilterSelect.addEventListener('change', ()=>{
-  workFilter = workFilterSelect.value || null;
+  const v = workFilterSelect.value;
+  workFilter = (v && v !== '__all__') ? v : null;
   workFilterSelect.classList.toggle('active', !!workFilter);
   renderMarkers();
   renderIndex();

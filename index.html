@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ホームズ・アトラス（開発中）</title>
+<title>ホームズ・アトラス</title>
+<meta name="description" content="シャーロック・ホームズ作品に登場する地名・人物・作品情報を、地図と索引でたどれるファンサイトです。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='14' fill='%232b2a28'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%23c9a94f' font-family='Georgia,serif'%3EH%3C/text%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ホームズ・アトラス">
+<meta property="og:description" content="シャーロック・ホームズ作品に登場する地名・人物・作品情報を、地図と索引でたどれるファンサイトです。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
@@ -198,6 +203,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .jc-report-btn:hover{border-color:var(--burgundy);color:var(--burgundy);}
 .jc-replies{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);}
 .jc-reply{font-size:.82rem;line-height:1.6;margin-bottom:6px;}
+.jc-reply-del-btn{background:none;border:none;color:var(--burgundy);font-size:.72rem;cursor:pointer;margin-left:8px;padding:0;text-decoration:underline;}
 .jc-reply-form{display:flex;gap:6px;margin-top:6px;}
 .jc-reply-form input{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:3px;font-size:.82rem;}
 .jc-reply-form button{background:var(--brass);border:none;color:#fff;padding:0 12px;border-radius:3px;cursor:pointer;font-size:.8rem;}
@@ -1279,6 +1285,8 @@ function rpcObjDelete(key, itemId){ return callRpc('atlas_obj_delete', { p_key:k
 function rpcObjNestedArrayAddUnique(key, itemId, field, value){ return callRpc('atlas_obj_nested_array_add_unique', { p_key:key, p_item_id:itemId, p_field:field, p_value:value }); }
 function rpcObjNestedArrayAppend(key, itemId, field, item){ return callRpc('atlas_obj_nested_array_append', { p_key:key, p_item_id:itemId, p_field:field, p_item:item }); }
 function rpcObjNestedArrayRemoveById(key, itemId, field, childId){ return callRpc('atlas_obj_nested_array_remove_by_id', { p_key:key, p_item_id:itemId, p_field:field, p_child_id:childId }); }
+// 訪問記録への返信を1件だけ削除する（返信の投稿者本人 or 審査担当者のみ成功する。サーバー側でも判定している）
+function rpcJournalDeleteReply(journalId, replyId){ return callRpc('atlas_journal_delete_reply', { p_journal_id:journalId, p_reply_id:replyId }); }
 
 // 新規追加・編集・写真追加の各モーダルで共通の「提案（proposal）」レコードを組み立てて送信する。
 // 審査担当者以外の投稿はここを通ってp-proposalsに積まれ、審査ダッシュボードでの承認を待つ。
@@ -1593,12 +1601,35 @@ async function uploadImageToStorage(file){
   const { data } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
+// 画像アップロードの簡易な連投防止（あくまでブラウザ側だけの目安のチェックであり、
+// devtools等から直接アップロード処理を呼び出せば回避できてしまう。厳密な対策では
+// なく、通常の使い方での誤操作・連打を防ぐための軽い歯止め）。
+// Supabase Storage側のバケット容量・ファイルサイズ上限の設定も別途ご確認ください。
+function canUploadImageNow(){
+  if(isReviewer()) return true;
+  const STORAGE_KEY = 'atlasImgUploadTimes';
+  const WINDOW_MS = 10*60*1000; // 10分
+  const MAX_COUNT = 8;
+  let times = [];
+  try{ times = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }catch(e){ times = []; }
+  const now = Date.now();
+  times = times.filter(t => now - t < WINDOW_MS);
+  if(times.length >= MAX_COUNT) return false;
+  times.push(now);
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(times)); }catch(e){}
+  return true;
+}
 function wireImageUpload(fileInputId, previewId, onResult){
   const fileInput = document.getElementById(fileInputId);
   const previewEl = document.getElementById(previewId);
   fileInput.addEventListener('change', async ()=>{
     const file = fileInput.files[0];
     if(!file) return;
+    if(!canUploadImageNow()){
+      showToast('画像のアップロードが少し多すぎるようです。しばらく時間を置いてからお試しください。');
+      fileInput.value = '';
+      return;
+    }
     previewEl.innerHTML = '<div class="hint">画像をアップロード中…</div>';
     try{
       const url = await uploadImageToStorage(file);
@@ -1662,10 +1693,18 @@ function resolveKatakanaAlias(query){
   }
   return null;
 }
+// 地名の言い換え辞書（p-aliases）は荒らし対策のため審査担当者のみ直接書き込める。
+// 一般会員の登録は「別名の提案」としてp-proposalsに送られ、承認後に反映される。
 async function saveCustomAlias(query, englishName){
   const key = normalizeForAlias(query);
-  customAliases[key] = englishName;
-  await rpcObjSet('p-aliases', key, englishName);
+  if(isReviewer()){
+    customAliases[key] = englishName;
+    await rpcObjSet('p-aliases', key, englishName);
+    return true;
+  } else {
+    await submitProposal('alias', 'alias', key, {key, ja:query, en:englishName});
+    return false;
+  }
 }
 async function deleteCustomAlias(key){
   delete customAliases[key];
@@ -1999,7 +2038,7 @@ function renderIndex(){
     html += `<div class="alias-list-empty">まだありません。</div>`;
   } else {
     aliasKeys.forEach(k=>{
-      html += `<div class="alias-list-item"><span>${escapeHtml(k)} → ${escapeHtml(customAliases[k])}</span><button class="alias-delete-btn" data-del-alias="${escapeAttr(k)}">×</button></div>`;
+      html += `<div class="alias-list-item"><span>${escapeHtml(k)} → ${escapeHtml(customAliases[k])}</span>${isReviewer() ? `<button class="alias-delete-btn" data-del-alias="${escapeAttr(k)}">×</button>` : ''}</div>`;
     });
   }
   html += `</div></div>`;
@@ -2244,6 +2283,7 @@ function openLegalModal(){
       <p><strong>プライバシーポリシー</strong></p>
       <p>会員登録の際に、メールアドレス・表示名をお預かりします。また、訪問記録・感想・写真・返信など、みなさまが投稿した内容を保存します。これらは本サイトの機能提供（ログイン、投稿の表示、不正利用への対応）の目的でのみ利用し、法令に基づく場合を除き第三者に提供・販売することはありません。</p>
       <p>データはSupabase（クラウドデータベースサービス）上に保存されます。Googleアカウントでログインする場合は、Googleのプライバシーポリシーも適用されます。</p>
+      <p>地図の表示・地名検索には、MapTiler（地図タイル・ジオコーディング）およびNominatim/OpenStreetMap（地名検索の補助）を利用しています。検索欄に入力した文字列は、検索のためにこれらの外部サービスへ送信されます。</p>
       <p>表示名の変更や、ご自身の投稿の削除はいつでも行えます。アカウント（アカウント画面）から、アカウント本体・個人メモ・お気に入り・ご自身の投稿をまとめて削除することもできます。それ以外のお問い合わせは下記までご連絡ください。</p>
       <p><strong>お問い合わせ先</strong><br><a href="mailto:${LEGAL_CONTACT}">${LEGAL_CONTACT}</a></p>
     </div>
@@ -2622,11 +2662,16 @@ function openReviewDashboard(){
   });
 }
 function renderProposalCard(p){
-  const kindLabel = p.kind==='new' ? '新規追加' : (p.kind==='photo' ? '写真の追加' : '編集');
-  const targetName = p.kind==='new' ? p.draft.name : (DATA[p.targetId]?.name || p.targetId);
+  const kindLabel = p.kind==='new' ? '新規追加' : (p.kind==='photo' ? '写真の追加' : (p.kind==='alias' ? '別名の追加' : '編集'));
+  const targetName = p.kind==='new' ? p.draft.name : (p.kind==='alias' ? p.draft.ja : (DATA[p.targetId]?.name || p.targetId));
   const dateStr = new Date(p.createdAt).toLocaleString('ja-JP');
   let detailHtml = '';
-  if(p.kind==='new'){
+  if(p.kind==='alias'){
+    detailHtml = `<div class="proposal-detail">
+      <div><strong>カタカナ表記：</strong>${escapeHtml(p.draft.ja)}</div>
+      <div><strong>英語表記：</strong>${escapeHtml(p.draft.en)}</div>
+    </div>`;
+  } else if(p.kind==='new'){
     detailHtml = `<div class="proposal-detail">
       <div><strong>種別：</strong>${TYPE_LABEL[p.targetType]||p.targetType}</div>
       <div><strong>名前：</strong>${escapeHtml(p.draft.name)}</div>
@@ -2667,7 +2712,10 @@ function renderProposalCard(p){
 async function approveProposal(propId){
   const p = proposals.find(x=>x.id===propId);
   if(!p) return;
-  if(p.kind==='new'){
+  if(p.kind==='alias'){
+    customAliases[p.draft.key] = p.draft.en;
+    await rpcObjSet('p-aliases', p.draft.key, p.draft.en);
+  } else if(p.kind==='new'){
     const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     additions[newId] = p.draft;
     await rpcObjMerge('p-additions', newId, p.draft);
@@ -2750,7 +2798,7 @@ async function deleteEntity(targetId){
 function openAliasModal(){
   modalBody.innerHTML = `
     <h3>地名の言い換えを登録</h3>
-    <div class="modal-sub">検索するとき自動で変換される、カタカナ→英語の対応を追加します。</div>
+    <div class="modal-sub">${reviewModalSub('検索するとき自動で変換される、カタカナ→英語の対応を追加します。')}</div>
     <div class="field"><label>カタカナ表記（検索時に打ち込む文字）</label><input type="text" id="alias-ja" placeholder="例：ウーリッジ"></div>
     <div class="field"><label>英語表記</label><input type="text" id="alias-en" placeholder="例：Woolwich, London"></div>
     <div class="modal-actions"><button class="modal-cancel" id="alias-cancel">キャンセル</button><button class="modal-submit" id="alias-submit">登録する</button></div>`;
@@ -2760,8 +2808,9 @@ function openAliasModal(){
     const ja = document.getElementById('alias-ja').value.trim();
     const en = document.getElementById('alias-en').value.trim();
     if(!ja || !en){ showToast('両方の欄を入力してください。'); return; }
-    await saveCustomAlias(ja, en);
-    closeModal(); showToast('辞書に登録しました。');
+    const appliedDirectly = await saveCustomAlias(ja, en);
+    closeModal();
+    showToast(appliedDirectly ? '辞書に登録しました。' : '提案を送信しました。審査担当者の確認後に反映されます。');
     renderIndex();
   });
 }
@@ -2854,7 +2903,10 @@ function renderJournalCard(j){
         ${canDelete ? `<button class="jc-delete-btn" data-del-journal="${j.id}">削除</button>` : ''}
       </div>
       ${isPrivate ? '' : `<div class="jc-replies" id="replies-${j.id}" style="display:none;">
-        ${replies.map(r=>`<div class="jc-reply"><strong>${escapeHtml(r.authorName)}</strong>：${escapeHtml(r.comment)}</div>`).join('')}
+        ${replies.map(r=>{
+          const canDeleteReply = currentUser && (currentUser.id === r.authorId || isReviewer());
+          return `<div class="jc-reply"><strong>${escapeHtml(r.authorName)}</strong>：${escapeHtml(r.comment)}${canDeleteReply ? `<button class="jc-reply-del-btn" data-del-reply-journal="${j.id}" data-del-reply-id="${r.id}">削除</button>` : ''}</div>`;
+        }).join('')}
         ${currentUser ? `<div class="jc-reply-form"><input type="text" id="reply-input-${j.id}" placeholder="返信を書く"><button data-reply-submit="${j.id}">送信</button></div>` : ''}
       </div>`}
     </div>`;
@@ -3024,9 +3076,19 @@ async function addJournalReply(id, comment){
   showToast('返信しました。');
   refreshJournalViews();
 }
+async function deleteJournalReply(journalId, replyId){
+  if(!confirm('この返信を削除します。よろしいですか？')) return;
+  const j = journal.find(x=>x.id===journalId);
+  if(j) j.replies = (j.replies||[]).filter(r=>r.id!==replyId);
+  const ok = await rpcJournalDeleteReply(journalId, replyId);
+  if(ok) showToast('返信を削除しました。');
+  refreshJournalViews();
+}
 document.addEventListener('click', async (ev)=>{
   const delBtn = ev.target.closest('[data-del-journal]');
   if(delBtn){ deleteJournal(delBtn.dataset.delJournal); return; }
+  const delReplyBtn = ev.target.closest('[data-del-reply-id]');
+  if(delReplyBtn){ await deleteJournalReply(delReplyBtn.dataset.delReplyJournal, delReplyBtn.dataset.delReplyId); return; }
   const likeBtn = ev.target.closest('[data-like-journal]');
   if(likeBtn){ await toggleJournalLike(likeBtn.dataset.likeJournal); return; }
   const replyToggle = ev.target.closest('[data-reply-toggle]');

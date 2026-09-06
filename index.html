@@ -430,6 +430,9 @@ function openAccountModal(){
       <button class="modal-submit" id="account-editname-btn">表示名を変更</button>
       <button class="modal-cancel" id="account-logout-btn">ログアウト</button>
     </div>
+    <div class="modal-actions" style="justify-content:flex-start;margin-top:4px;">
+      <button class="danger-delete-btn" id="account-delete-btn">アカウントを削除する</button>
+    </div>
     <div class="modal-actions"><button class="modal-cancel" id="account-close">閉じる</button></div>`;
   overlay.classList.add('open');
   document.getElementById('account-close').addEventListener('click', closeModal);
@@ -438,6 +441,53 @@ function openAccountModal(){
     await supabaseClient.auth.signOut();
     closeModal();
   });
+  document.getElementById('account-delete-btn').addEventListener('click', openDeleteAccountConfirmModal);
+}
+function openDeleteAccountConfirmModal(){
+  modalBody.innerHTML = `
+    <h3 style="color:var(--burgundy);">アカウントを削除しますか？</h3>
+    <div class="modal-sub">この操作は元に戻せません。個人メモ・お気に入り・自分の投稿・アカウント自体が削除されます。本当に削除する場合は、下の欄に「削除」と入力してください。</div>
+    <div class="field">
+      <input type="text" id="account-delete-confirm-input" placeholder="削除">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="account-delete-cancel">キャンセル</button>
+      <button class="danger-delete-btn" id="account-delete-confirm-btn" disabled>削除する</button>
+    </div>`;
+  overlay.classList.add('open');
+  const input = document.getElementById('account-delete-confirm-input');
+  const confirmBtn = document.getElementById('account-delete-confirm-btn');
+  input.addEventListener('input', ()=>{ confirmBtn.disabled = input.value.trim() !== '削除'; });
+  document.getElementById('account-delete-cancel').addEventListener('click', closeModal);
+  confirmBtn.addEventListener('click', async ()=>{
+    if(input.value.trim() !== '削除') return;
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '削除しています…';
+    await deleteMyAccount();
+  });
+}
+async function deleteMyAccount(){
+  try{
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if(!token){ showToast('ログイン状態が確認できませんでした。'); return; }
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_ANON_KEY }
+    });
+    if(!res.ok){
+      const body = await res.json().catch(()=>({}));
+      showToast('削除に失敗しました：' + (body.error || res.status));
+      return;
+    }
+    await supabaseClient.auth.signOut();
+    closeModal();
+    showToast('アカウントを削除しました。');
+    setTimeout(()=>location.reload(), 800);
+  }catch(e){
+    console.error(e);
+    showToast('削除に失敗しました。通信環境をご確認の上もう一度お試しください。');
+  }
 }
 function openAuthModal(mode){
   const isSignup = mode==='signup';
@@ -1734,7 +1784,9 @@ function renderIndex(){
   html += `</div></div>`;
 
   html += `<div class="site-license">本サイトの説明文は <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a> で公開しています（出典を明記すれば自由にご利用いただけます）。画像は個別に出典・ライセンスを表示しています。</div>`;
+  html += `<div class="site-license"><button class="link-btn" id="openLegalBtn">利用規約・プライバシーポリシー</button>（本サイトは個人が趣味で開発・運営しています）</div>`;
   indexEl.innerHTML = html;
+  document.getElementById('openLegalBtn')?.addEventListener('click', openLegalModal);
   indexEl.querySelectorAll('.index-item[data-id]').forEach(btn=>btn.addEventListener('click', ()=>showEntity(btn.dataset.id)));
   document.getElementById('aliasAddStandaloneBtn')?.addEventListener('click', (ev)=>{
     ev.stopPropagation();
@@ -1948,6 +2000,29 @@ function goToMap(id){
 const overlay = document.getElementById('modalOverlay');
 const modalBody = document.getElementById('modalBody');
 function closeModal(){ overlay.classList.remove('open'); modalBody.innerHTML=''; }
+const LEGAL_CONTACT = 'ここに連絡先（メールアドレス等）を記載してください';
+function openLegalModal(){
+  modalBody.innerHTML = `
+    <h3>利用規約・プライバシーポリシー</h3>
+    <div class="legal-text" style="max-height:60vh;overflow-y:auto;font-size:.85rem;line-height:1.7;">
+      <p><strong>本サイトについて</strong><br>
+      「ホームズ・アトラス」は、個人が趣味として開発・運営しているファンサイトです。特定の企業・団体を代表するものではなく、内容は予告なく変更・停止・終了する場合があります。</p>
+
+      <p><strong>利用規約</strong></p>
+      <p>以下の行為を禁止します：法令に違反する行為／他者の著作権・肖像権・プライバシーその他の権利を侵害する行為／誹謗中傷・嫌がらせ・なりすまし／スパム的な投稿や、システムに過度な負荷をかける行為。これらに該当すると運営者が判断した投稿は、通知なく削除する場合があります。</p>
+      <p>投稿された地名解説等のオリジナルコンテンツは<a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>の下で公開されます。</p>
+      <p>本サイトは個人開発のため、内容の正確性・サービスの継続性を保証しません。本サイトの利用により生じた損害について、運営者に故意または重大な過失がある場合を除き、責任を負いかねます。</p>
+
+      <p><strong>プライバシーポリシー</strong></p>
+      <p>会員登録の際に、メールアドレス・表示名をお預かりします。また、訪問記録・感想・写真・返信など、みなさまが投稿した内容を保存します。これらは本サイトの機能提供（ログイン、投稿の表示、不正利用への対応）の目的でのみ利用し、法令に基づく場合を除き第三者に提供・販売することはありません。</p>
+      <p>データはSupabase（クラウドデータベースサービス）上に保存されます。Googleアカウントでログインする場合は、Googleのプライバシーポリシーも適用されます。</p>
+      <p>表示名の変更や、ご自身の投稿の削除はいつでも行えます。アカウント（アカウント画面）から、アカウント本体・個人メモ・お気に入り・ご自身の投稿をまとめて削除することもできます。それ以外のお問い合わせは下記までご連絡ください。</p>
+      <p><strong>お問い合わせ先</strong><br>${LEGAL_CONTACT}</p>
+    </div>
+    <div class="modal-actions"><button class="modal-cancel" id="legal-close">閉じる</button></div>`;
+  overlay.classList.add('open');
+  document.getElementById('legal-close').addEventListener('click', closeModal);
+}
 overlay.addEventListener('click', ev=>{ if(ev.target===overlay) closeModal(); });
 
 function relatedChecklist(excludeId, preselected=[]){
@@ -2970,9 +3045,13 @@ function selectExternalLocation(r){
 }
 let searchDebounce;
 const mapSearchClearBtn = document.getElementById('mapSearchClearBtn');
-const RECENT_SEARCH_KEY = 'holmes-atlas-recent-searches';
+function recentSearchKey(){
+  // ログイン中のアカウントごとに履歴を分ける（同じ端末でアカウントを切り替えても
+  // 前のアカウントの検索履歴が見えないように）。未ログイン時は共通の匿名枠を使う。
+  return 'holmes-atlas-recent-searches:' + (currentUser ? currentUser.id : 'anon');
+}
 function getRecentSearches(){
-  try{ return JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY) || '[]'); }catch(e){ return []; }
+  try{ return JSON.parse(localStorage.getItem(recentSearchKey()) || '[]'); }catch(e){ return []; }
 }
 function saveRecentSearch(q){
   if(!q || !q.trim()) return;
@@ -2980,7 +3059,7 @@ function saveRecentSearch(q){
   let list = getRecentSearches().filter(x=>x!==q);
   list.unshift(q);
   list = list.slice(0,8);
-  try{ localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(list)); }catch(e){}
+  try{ localStorage.setItem(recentSearchKey(), JSON.stringify(list)); }catch(e){}
 }
 function renderRecentSearches(){
   const list = getRecentSearches();

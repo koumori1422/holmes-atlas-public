@@ -1184,6 +1184,29 @@ async function safeSet(key, value){
     return true;
   }catch(e){ console.error(e); showToast('保存に失敗しました。'); return false; }
 }
+// ---------- 原子的な部分更新（同時書き込みでの上書き事故対策） ----------
+// atlas_data を「丸ごと読み込み→JSで直す→丸ごと書き戻す」のではなく、
+// Postgres側の関数（RPC）で「1件だけ」操作することで、複数人が同時に
+// 書き込んでも自動的に順番に処理され、互いの変更を消し合わないようにする。
+async function callRpc(fn, args){
+  try{
+    const { error } = await supabaseClient.rpc(fn, args);
+    if(error){ console.error(error); showToast('保存に失敗しました。'); return false; }
+    return true;
+  }catch(e){ console.error(e); showToast('保存に失敗しました。'); return false; }
+}
+function rpcArrAppend(key, item){ return callRpc('atlas_arr_append', { p_key:key, p_item:item }); }
+function rpcArrPatch(key, id, patch){ return callRpc('atlas_arr_patch', { p_key:key, p_id:id, p_patch:patch }); }
+function rpcArrRemove(key, id){ return callRpc('atlas_arr_remove', { p_key:key, p_id:id }); }
+function rpcArrToggleMember(key, id, field, value){ return callRpc('atlas_arr_toggle_member', { p_key:key, p_id:id, p_field:field, p_value:value }); }
+function rpcArrNestedAppend(key, id, field, item){ return callRpc('atlas_arr_nested_append', { p_key:key, p_id:id, p_field:field, p_item:item }); }
+function rpcObjMerge(key, itemId, patch){ return callRpc('atlas_obj_merge', { p_key:key, p_item_id:itemId, p_patch:patch }); }
+function rpcObjSet(key, itemId, value){ return callRpc('atlas_obj_set', { p_key:key, p_item_id:itemId, p_value:value }); }
+function rpcObjDelete(key, itemId){ return callRpc('atlas_obj_delete', { p_key:key, p_item_id:itemId }); }
+function rpcObjNestedArrayAddUnique(key, itemId, field, value){ return callRpc('atlas_obj_nested_array_add_unique', { p_key:key, p_item_id:itemId, p_field:field, p_value:value }); }
+function rpcObjNestedArrayAppend(key, itemId, field, item){ return callRpc('atlas_obj_nested_array_append', { p_key:key, p_item_id:itemId, p_field:field, p_item:item }); }
+function rpcObjNestedArrayRemoveById(key, itemId, field, childId){ return callRpc('atlas_obj_nested_array_remove_by_id', { p_key:key, p_item_id:itemId, p_field:field, p_child_id:childId }); }
+
 async function loadAll(){
   const [ov, add, notes, favs, jour, aliases, props, reps] = await Promise.all([
     safeGet('p-overrides'), safeGet('p-additions'), safeGet(privateNotesKey()), safeGet(favoritesKey()), safeGet('p-journal'), safeGet('p-aliases'), safeGet('p-proposals'), safeGet('p-reports')
@@ -1297,7 +1320,7 @@ async function resolveAmbiguousLink(entityId, token, chosenId, displayText){
   const newDesc = e.desc.replace(pattern, `[[${chosenId}|${displayText}]]`);
   overrides[entityId] = overrides[entityId] || {};
   overrides[entityId].desc = newDesc;
-  await safeSet('p-overrides', overrides);
+  await rpcObjMerge('p-overrides', entityId, {desc:newDesc});
   DATA = buildData();
   showToast('リンク先を確定しました。');
   showEntity(entityId, {fromTrail:true});
@@ -1530,11 +1553,11 @@ function resolveKatakanaAlias(query){
 async function saveCustomAlias(query, englishName){
   const key = normalizeForAlias(query);
   customAliases[key] = englishName;
-  await safeSet('p-aliases', customAliases);
+  await rpcObjSet('p-aliases', key, englishName);
 }
 async function deleteCustomAlias(key){
   delete customAliases[key];
-  await safeSet('p-aliases', customAliases);
+  await rpcObjDelete('p-aliases', key);
 }
 async function geocodeSearch(query){
   const alias = resolveKatakanaAlias(query);
@@ -2191,26 +2214,27 @@ function openEntityModal(prefill){
     if(isReviewer()){
       const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
       additions[newId] = draft;
-      await safeSet('p-additions', additions);
+      await rpcObjMerge('p-additions', newId, draft);
       related.forEach(relId=>{
         overrides[relId] = overrides[relId] || {};
         const extra = new Set(overrides[relId].extraRelated||[]);
         extra.add(newId);
         overrides[relId].extraRelated = Array.from(extra);
       });
-      await safeSet('p-overrides', overrides);
+      await Promise.all(related.map(relId=>rpcObjNestedArrayAddUnique('p-overrides', relId, 'extraRelated', newId)));
       DATA = buildData(); renderMarkers(); renderIndex();
       clearDraft('newEntity', 'new');
       closeModal(); showToast('追加しました。');
       showEntity(newId);
     } else {
-      proposals.push({
+      const newProposal = {
         id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
         kind: 'new', targetType: type, targetId: null, draft,
         authorId: currentUser.id, authorName: getDisplayName(currentUser),
         status: 'pending', createdAt: Date.now(), reviewNote: ''
-      });
-      await safeSet('p-proposals', proposals);
+      };
+      proposals.push(newProposal);
+      await rpcArrAppend('p-proposals', newProposal);
       clearDraft('newEntity', 'new');
       closeModal(); showToast('提案を送信しました。審査担当者の確認後に反映されます。');
     }
@@ -2302,19 +2326,20 @@ function openEditModal(targetId){
     draft.extraRelated = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
     if(isReviewer()){
       overrides[targetId] = Object.assign(overrides[targetId] || {}, draft);
-      await safeSet('p-overrides', overrides);
+      await rpcObjMerge('p-overrides', targetId, draft);
       DATA = buildData(); renderMarkers(); renderIndex();
       clearDraft('editEntity', targetId);
       closeModal(); showToast('保存しました。');
       showEntity(targetId, {fromTrail:true});
     } else {
-      proposals.push({
+      const newProposal = {
         id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
         kind: 'edit', targetType: e.type, targetId, draft,
         authorId: currentUser.id, authorName: getDisplayName(currentUser),
         status: 'pending', createdAt: Date.now(), reviewNote: ''
-      });
-      await safeSet('p-proposals', proposals);
+      };
+      proposals.push(newProposal);
+      await rpcArrAppend('p-proposals', newProposal);
       clearDraft('editEntity', targetId);
       closeModal(); showToast('編集案を送信しました。審査担当者の確認後に反映されます。');
     }
@@ -2383,13 +2408,14 @@ async function openReportModal(journalId){
   document.getElementById('report-submit').addEventListener('click', async ()=>{
     const reason = document.getElementById('report-reason').value.trim();
     if(!reason){ showToast('理由を入力してください。'); return; }
-    reports.push({
+    const newReport = {
       id: 'rep-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
       journalId, reason,
       reporterId: currentUser.id, reporterName: getDisplayName(currentUser),
       status: 'pending', createdAt: Date.now()
-    });
-    await safeSet('p-reports', reports);
+    };
+    reports.push(newReport);
+    await rpcArrAppend('p-reports', newReport);
     closeModal(); showToast('通報しました。ご協力ありがとうございます。');
   });
 }
@@ -2420,11 +2446,11 @@ async function resolveReport(reportId, shouldDelete){
   if(!r) return;
   if(shouldDelete){
     journal = journal.filter(j=>j.id!==r.journalId);
-    await safeSet('p-journal', journal);
+    await rpcArrRemove('p-journal', r.journalId);
     renderJournalMarkers();
   }
   r.status = 'resolved';
-  await safeSet('p-reports', reports);
+  await rpcArrPatch('p-reports', reportId, {status:'resolved'});
   showToast(shouldDelete ? '投稿を削除しました。' : '却下しました。');
   updateReviewCountBadge();
   openReviewDashboard();
@@ -2495,25 +2521,25 @@ async function approveProposal(propId){
   if(p.kind==='new'){
     const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     additions[newId] = p.draft;
-    await safeSet('p-additions', additions);
+    await rpcObjMerge('p-additions', newId, p.draft);
     (p.draft.related||[]).forEach(relId=>{
       overrides[relId] = overrides[relId] || {};
       const extra = new Set(overrides[relId].extraRelated||[]);
       extra.add(newId);
       overrides[relId].extraRelated = Array.from(extra);
     });
-    await safeSet('p-overrides', overrides);
+    await Promise.all((p.draft.related||[]).map(relId=>rpcObjNestedArrayAddUnique('p-overrides', relId, 'extraRelated', newId)));
   } else if(p.kind==='photo'){
     overrides[p.targetId] = overrides[p.targetId] || {};
     overrides[p.targetId].extraPhotos = overrides[p.targetId].extraPhotos || [];
     overrides[p.targetId].extraPhotos.push(p.draft);
-    await safeSet('p-overrides', overrides);
+    await rpcObjNestedArrayAppend('p-overrides', p.targetId, 'extraPhotos', p.draft);
   } else {
     overrides[p.targetId] = Object.assign(overrides[p.targetId] || {}, p.draft);
-    await safeSet('p-overrides', overrides);
+    await rpcObjMerge('p-overrides', p.targetId, p.draft);
   }
   p.status = 'approved';
-  await safeSet('p-proposals', proposals);
+  await rpcArrPatch('p-proposals', propId, {status:'approved'});
   DATA = buildData(); renderMarkers(); renderIndex();
   showToast('承認しました。');
   updateReviewCountBadge();
@@ -2523,7 +2549,7 @@ async function rejectProposal(propId){
   const p = proposals.find(x=>x.id===propId);
   if(!p) return;
   p.status = 'rejected';
-  await safeSet('p-proposals', proposals);
+  await rpcArrPatch('p-proposals', propId, {status:'rejected'});
   showToast('却下しました。');
   updateReviewCountBadge();
   openReviewDashboard();
@@ -2556,11 +2582,11 @@ function openDeleteConfirmModal(targetId, entityName){
 async function deleteEntity(targetId){
   if(additions[targetId]){
     delete additions[targetId];
-    await safeSet('p-additions', additions);
+    await rpcObjDelete('p-additions', targetId);
   } else {
     overrides[targetId] = overrides[targetId] || {};
     overrides[targetId].deleted = true;
-    await safeSet('p-overrides', overrides);
+    await rpcObjMerge('p-overrides', targetId, {deleted:true});
   }
   favorites = favorites.filter(x=>x!==targetId);
   await safeSet(favoritesKey(), favorites);
@@ -2627,18 +2653,19 @@ function openPhotoModal(entityId){
       overrides[entityId] = overrides[entityId] || {};
       overrides[entityId].extraPhotos = overrides[entityId].extraPhotos || [];
       overrides[entityId].extraPhotos.push(photo);
-      await safeSet('p-overrides', overrides);
+      await rpcObjNestedArrayAppend('p-overrides', entityId, 'extraPhotos', photo);
       DATA = buildData();
       closeModal(); showToast('写真を追加しました。');
       showEntity(entityId, {fromTrail:true});
     } else {
-      proposals.push({
+      const newProposal = {
         id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
         kind: 'photo', targetType: e.type, targetId: entityId, draft: photo,
         authorId: currentUser.id, authorName: getDisplayName(currentUser),
         status: 'pending', createdAt: Date.now(), reviewNote: ''
-      });
-      await safeSet('p-proposals', proposals);
+      };
+      proposals.push(newProposal);
+      await rpcArrAppend('p-proposals', newProposal);
       closeModal(); showToast('写真の提案を送信しました。審査担当者の確認後に反映されます。');
     }
   });
@@ -2648,7 +2675,7 @@ async function deletePhoto(entityId, photoId){
   if(!confirm('この写真を削除します。よろしいですか？')) return;
   overrides[entityId] = overrides[entityId] || {};
   overrides[entityId].extraPhotos = (overrides[entityId].extraPhotos || []).filter(p=>p.id!==photoId);
-  await safeSet('p-overrides', overrides);
+  await rpcObjNestedArrayRemoveById('p-overrides', entityId, 'extraPhotos', photoId);
   DATA = buildData();
   showToast('削除しました。');
   showEntity(entityId, {fromTrail:true});
@@ -2794,7 +2821,7 @@ function openJournalModal(prefill){
       await safeSet(privateNotesKey(), privateNotes);
     } else {
       journal.push(record);
-      await safeSet('p-journal', journal);
+      await rpcArrAppend('p-journal', record);
     }
     clearDraft('journal', journalDraftId);
     closeModal(); showToast('保存しました。');
@@ -2820,7 +2847,7 @@ async function deleteJournal(id){
     if(!currentUser || (currentUser.id !== inPublic.authorId && !isReviewer())){ showToast('この投稿を削除する権限がありません。'); return; }
     if(!confirm('この記録を削除します。よろしいですか？')) return;
     journal = journal.filter(x=>x.id!==id);
-    await safeSet('p-journal', journal);
+    await rpcArrRemove('p-journal', id);
     showToast('削除しました。');
     refreshJournalViews();
     return;
@@ -2841,7 +2868,7 @@ async function toggleJournalLike(id){
   j.likedBy = j.likedBy || [];
   const idx = j.likedBy.indexOf(currentUser.id);
   if(idx>=0) j.likedBy.splice(idx,1); else j.likedBy.push(currentUser.id);
-  await safeSet('p-journal', journal);
+  await rpcArrToggleMember('p-journal', id, 'likedBy', currentUser.id);
   refreshJournalViews();
 }
 async function addJournalReply(id, comment){
@@ -2849,8 +2876,9 @@ async function addJournalReply(id, comment){
   const j = journal.find(x=>x.id===id);
   if(!j) return;
   j.replies = j.replies || [];
-  j.replies.push({id:'r-'+Date.now().toString(36), authorId:currentUser.id, authorName: getDisplayName(currentUser), comment, createdAt: Date.now()});
-  await safeSet('p-journal', journal);
+  const newReply = {id:'r-'+Date.now().toString(36), authorId:currentUser.id, authorName: getDisplayName(currentUser), comment, createdAt: Date.now()};
+  j.replies.push(newReply);
+  await rpcArrNestedAppend('p-journal', id, 'replies', newReply);
   showToast('返信しました。');
   refreshJournalViews();
 }

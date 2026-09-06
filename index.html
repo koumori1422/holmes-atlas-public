@@ -101,17 +101,34 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .alias-register-row input{flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:3px;font-size:.8rem;}
 .alias-register-row button{background:var(--brass);border:none;color:#fff;padding:0 12px;border-radius:3px;cursor:pointer;font-size:.8rem;white-space:nowrap;}
 .search-popup-btn{background:var(--brass);border:none;color:#fff;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:.8rem;margin-top:4px;}
-/* 現在地・古地図・正典フィルタの3ボタンをまとめる入れ物。
-   以前はそれぞれ right:16px/66px/150px という固定値で個別に位置指定していたが、
-   ボタンの文言が状態によって変わる（例：「正典登場地のみ」⇔「全て表示」）ため、
-   文字幅がずれると隣のボタンと重なってしまっていた。flexboxで並べて自動的に
-   間隔を取るようにし、文言の長さが変わっても重ならないようにする。 */
-.map-controls-cluster{position:absolute;bottom:16px;right:16px;z-index:500;display:flex;flex-direction:row-reverse;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;max-width:calc(100vw - 24px);}
-.locate-map-btn{width:42px;height:42px;border-radius:50%;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);flex:none;}
-.locate-map-btn:hover{border-color:var(--brass);}
-.locate-map-btn svg{width:20px;height:20px;}
-/* 現在地を継続追跡中（向きの表示つき）であることを示すオン状態 */
-.locate-map-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);}
+/* 現在地・古地図・正典フィルタ・作品絞り込み・221Bへを、1本の「真鍮パネル」
+   ツールバーにまとめている。以前はそれぞれ独立した丸皿ボタンで、文言の長さが
+   変わると隣とぶつかったり見た目がバラバラだったりしたため、仕切り線（.mt-div）で
+   区切った1本の帯にし、状態のオン/オフは背景の塗りつぶしではなく文字色（金色）で
+   示す形に統一した。221Bへだけは特別な項目への近道なので、バーガンディ色の
+   小さなピルとして帯の右端に残している。横幅が収まらない画面では、帯の中身だけ
+   横スクロールできるようにして、ボタン同士が折り返して縦に伸びるのを防いでいる。 */
+.map-controls-cluster{position:absolute;bottom:16px;right:16px;z-index:500;display:flex;align-items:stretch;
+  max-width:calc(100vw - 24px);height:44px;background:linear-gradient(180deg,#2a3547,var(--ink-2));
+  border:1px solid var(--brass);border-radius:22px;box-shadow:0 4px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  padding:0 4px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
+.map-controls-cluster::-webkit-scrollbar{display:none;}
+.mt-div{width:1px;flex:none;align-self:center;height:22px;background:var(--line);}
+.mt-seg{display:flex;align-items:center;gap:6px;flex:none;background:none;border:none;color:var(--fog);opacity:.82;
+  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.78rem;white-space:nowrap;padding:0 12px;height:100%;}
+.mt-seg:hover{opacity:1;}
+.mt-seg.active{color:var(--brass-light);opacity:1;font-weight:600;}
+.mt-ic{width:17px;height:17px;flex:none;}
+.mt-icon-only{padding:0 11px;}
+.mt-icon-only .mt-ic{width:19px;height:19px;}
+/* 作品で絞り込みのセレクトは、ネイティブの<select>の見た目を消し（appearance:none）、
+   帯の中の他の項目と同じ「文字だけ」のセグメントに見せかける。矢印はCSSで別途重ねる。 */
+.mt-select-wrap{position:relative;padding:0 26px 0 12px;}
+.mt-select{appearance:none;-webkit-appearance:none;background:none;border:none;color:inherit;font:inherit;
+  cursor:pointer;max-width:min(150px,38vw);}
+.mt-select.active{color:var(--brass-light);font-weight:600;}
+.mt-select option{color:#000;background:#fff;}
+.mt-chevron{position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.75;}
 /* 現在地マーカー：中心の点＋向きが分かったときだけ表示する三角のコーン。
    地図の地色（セピー掛かったベージュ〜緑系）に埋もれて見えにくかったため、
    コーンは彩度の高い金茶色（--brass）に変更し、白い縁取り（halo）を背後に
@@ -128,30 +145,22 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .user-location-marker .ulm-cone{position:absolute;left:50%;top:-5px;width:24px;height:30px;margin-left:-12px;background:var(--brass);clip-path:polygon(50% 0%, 100% 100%, 50% 76%, 0% 100%);display:none;opacity:.97;z-index:1;}
 .user-location-marker.has-heading .ulm-cone-halo,
 .user-location-marker.has-heading .ulm-cone{display:block;}
-.historic-toggle-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;flex:none;}
-.historic-toggle-btn:hover{border-color:var(--brass);}
-.historic-toggle-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);font-weight:600;}
-/* 作品（正典の話）ごとの絞り込み用セレクト。他のトグルボタンと高さ・角丸・色を
-   揃えつつ、選択中は同じ金色の「オン」表示にする */
-.work-filter-select{height:42px;max-width:min(220px,calc(100vw - 24px));padding:0 10px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.8rem;box-shadow:0 2px 8px rgba(0,0,0,.35);flex:none;}
-.work-filter-select:hover{border-color:var(--brass);}
-.work-filter-select.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);font-weight:600;}
-.work-filter-select option{color:#000;background:#fff;}
 /* タップ後に残るブラウザ標準のフォーカスリングが、金色の「オン」表示と紛らわしかった
    ため、マウス・タッチでのクリック後は輪を出さず、キーボード操作（Tabキー）のときだけ
-   オン状態とは違う色味の細い輪を出すようにする */
-.historic-toggle-btn:focus,
-.work-filter-select:focus,
-.locate-map-btn:focus{outline:none;}
-.historic-toggle-btn:focus-visible,
-.work-filter-select:focus-visible,
-.locate-map-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
+   細い輪を出すようにする */
+.mt-seg:focus,
+.mt-select:focus{outline:none;}
+.mt-seg:focus-visible,
+.mt-select:focus-visible{outline:2px solid var(--fog);outline-offset:-2px;}
 /* 221Bへの直行ボタン。地図上の特別マーカー（.leaflet-holmes-special-icon）と
-   同じバーガンディ×金の配色にして、ここだけは特別な項目への近道だと分かるようにする */
-.baker-street-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--burgundy);border:2px solid var(--brass-light);color:#fff;cursor:pointer;font-size:.82rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.45);white-space:nowrap;flex:none;}
-.baker-street-btn:hover{filter:brightness(1.12);}
-.baker-street-btn:focus{outline:none;}
-.baker-street-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
+   同じバーガンディ×金の配色にして、ここだけは特別な項目への近道だと分かるように、
+   帯の他のセグメントとは切り離した小さなピルとして右端に残している。 */
+.mt-door{display:flex;align-items:center;gap:6px;flex:none;margin:5px 3px 5px 6px;padding:0 12px;
+  background:var(--burgundy);border:1.5px solid var(--brass-light);border-radius:17px;color:#fff;
+  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.78rem;font-weight:700;white-space:nowrap;}
+.mt-door:hover{filter:brightness(1.12);}
+.mt-door:focus{outline:none;}
+.mt-door:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
 .nearby-panel{position:absolute;bottom:66px;right:16px;z-index:500;width:min(300px,80%);background:var(--parchment);border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-height:320px;overflow-y:auto;display:none;}
 .nearby-panel.show{display:block;}
 .nearby-panel-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
@@ -405,16 +414,34 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       </div>
       <div class="map-search-results" id="mapSearchResults"></div>
     </div>
+    <!-- 「真鍮パネル」デザイン：バラバラな丸皿ボタンをやめ、1本の帯（ツールバー）に
+         まとめている。仕切り線と、オン状態の金色文字で「一つの計器盤」に見えるように
+         し、221Bへだけは特別枠（バーガンディ色の小さなピル）として右端に残す。 -->
     <div class="map-controls-cluster" id="mapControlsCluster">
-      <button class="locate-map-btn" id="locateMapBtn" title="現在地から探す" aria-label="現在地から近い場所を探す">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      <button class="mt-seg" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示">
+        <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5c3-1.5 6-1.5 8 0v14c-2-1.5-5-1.5-8 0V5Z"/><path d="M20 5c-3-1.5-6-1.5-8 0v14c2-1.5 5-1.5 8 0V5Z"/></svg>
+        <span>正典のみ</span>
       </button>
-      <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図（英国陸地測量部の1:10,560地形図、1888〜1913年にかけて測量）に切り替え">🗺️ 古地図（1888〜1913年）</button>
-      <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示">正典登場地のみ</button>
-      <select class="work-filter-select" id="workFilterSelect" title="選んだ作品に登場する地点だけを地図に表示する">
-        <option value="">全作品表示</option>
-      </select>
-      <button class="baker-street-btn" id="bakerStreetBtn" title="221Bベーカー街のページへ一発で移動">🚪 221Bへ</button>
+      <span class="mt-div"></span>
+      <button class="mt-seg" id="historicToggleBtn" title="ホームズ時代の古地図（英国陸地測量部の1:10,560地形図、1888〜1913年にかけて測量）に切り替え">
+        <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6Z"/><path d="M9 4v14M15 6v14"/></svg>
+        <span id="historicToggleLabel">古地図</span>
+      </button>
+      <span class="mt-div"></span>
+      <span class="mt-seg mt-select-wrap">
+        <select class="mt-select" id="workFilterSelect" title="選んだ作品に登場する地点だけを地図に表示する">
+          <option value="">全作品表示</option>
+        </select>
+        <svg class="mt-ic mt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </span>
+      <span class="mt-div"></span>
+      <button class="mt-seg mt-icon-only" id="locateMapBtn" title="現在地から探す" aria-label="現在地から近い場所を探す">
+        <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+      <button class="mt-door" id="bakerStreetBtn" title="221Bベーカー街のページへ一発で移動">
+        <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="3" width="12" height="18" rx="1"/><circle cx="14.5" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+        <span>221B</span>
+      </button>
     </div>
     <div class="nearby-panel" id="nearbyPanel"></div>
     <div class="panel" id="panel">
@@ -1990,11 +2017,12 @@ historicToggleBtn.addEventListener('click', ()=>{
     return;
   }
   showingHistoric = !showingHistoric;
-  // ボタンの文言は「切り替え先」で毎回変えるのではなく常に「🗺️ 古地図」のまま固定し、
-  // オンの間だけ先頭にチェックマークを付けて塗りつぶす（オン/オフが一目で分かるように、
-  // 隣の「正典登場地のみ」ボタンと共通のパターンにする）
+  // ボタン自体はアイコン付きのまま変えず（textContentで丸ごと差し替えるとアイコンの
+  // SVGごと消えてしまうため）、中のラベル<span>だけ書き換える。オンの間は年代表記も
+  // 一緒に出し、オフの間は帯を圧迫しないよう短い表記に戻す。オン/オフの色分けは
+  // 「正典登場地のみ」と共通のactiveクラスのパターンにする。
   historicToggleBtn.classList.toggle('active', showingHistoric);
-  historicToggleBtn.textContent = (showingHistoric ? '✓ ' : '') + '🗺️ 古地図（1888〜1913年）';
+  document.getElementById('historicToggleLabel').textContent = showingHistoric ? '古地図（1888〜1913年）' : '古地図';
   if(showingHistoric){
     // メインの地図がMapboxかOSMかを問わず、今表示中の方を退避する
     if(usingMapboxBasemap && mapboxGlLayer){ map.removeLayer(mapboxGlLayer); }
@@ -2013,9 +2041,9 @@ historicToggleBtn.addEventListener('click', ()=>{
 const coreOnlyBtn = document.getElementById('coreOnlyBtn');
 coreOnlyBtn.addEventListener('click', ()=>{
   coreOnlyFilter = !coreOnlyFilter;
-  // こちらも文言を変えず、オンの間だけチェックマーク＋塗りつぶしで表す
+  // ラベルの文言は変えず（アイコンごと消えるtextContent差し替えはしない）、
+  // オンの間は文字色だけ金色に変える
   coreOnlyBtn.classList.toggle('active', coreOnlyFilter);
-  coreOnlyBtn.textContent = (coreOnlyFilter ? '✓ ' : '') + '正典登場地のみ';
   renderMarkers();
   renderIndex();
 });
@@ -3906,7 +3934,7 @@ function onLocationError(err){
   showToast(msg);
   stopLocationTracking(true);
 }
-document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.nearby-panel') && !ev.target.closest('.locate-map-btn')) nearbyPanel.classList.remove('show'); });
+document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.nearby-panel') && !ev.target.closest('#locateMapBtn')) nearbyPanel.classList.remove('show'); });
 
 // ---------- 索引トグル・モバイルメニュー ----------
 document.getElementById('indexToggle').addEventListener('click', ()=>document.getElementById('index').classList.toggle('open'));

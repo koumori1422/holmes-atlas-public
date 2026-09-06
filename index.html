@@ -397,10 +397,10 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       <button class="locate-map-btn" id="locateMapBtn" title="現在地から探す" aria-label="現在地から近い場所を探す">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
       </button>
-      <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図に切り替え">🗺️ 古地図</button>
+      <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図（英国陸地測量部の1:10,560地形図、1888〜1913年にかけて測量）に切り替え">🗺️ 古地図（1888〜1913年）</button>
       <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示">正典登場地のみ</button>
       <select class="work-filter-select" id="workFilterSelect" title="選んだ作品に登場する地点だけを地図に表示する">
-        <option value="">作品で絞り込み…</option>
+        <option value="">全作品表示</option>
       </select>
       <button class="baker-street-btn" id="bakerStreetBtn" title="221Bベーカー街のページへ一発で移動">🚪 221Bへ</button>
     </div>
@@ -1961,7 +1961,7 @@ let showingHistoric = false;
 function getHistoricLayer(){
   if(!historicLayer){
     historicLayer = L.tileLayer(`https://api.maptiler.com/tiles/${MAPTILER_HISTORIC_TILE_ID}/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
-      attribution:'Historic map: National Library of Scotland / MapTiler',
+      attribution:'Historic map (Ordnance Survey six-inch, surveyed 1888-1913): National Library of Scotland / MapTiler',
       maxZoom:18
     });
     historicLayer.on('tileerror', ()=>{
@@ -1982,7 +1982,7 @@ historicToggleBtn.addEventListener('click', ()=>{
   // オンの間だけ先頭にチェックマークを付けて塗りつぶす（オン/オフが一目で分かるように、
   // 隣の「正典登場地のみ」ボタンと共通のパターンにする）
   historicToggleBtn.classList.toggle('active', showingHistoric);
-  historicToggleBtn.textContent = (showingHistoric ? '✓ ' : '') + '🗺️ 古地図';
+  historicToggleBtn.textContent = (showingHistoric ? '✓ ' : '') + '🗺️ 古地図（1888〜1913年）';
   if(showingHistoric){
     // メインの地図がMapboxかOSMかを問わず、今表示中の方を退避する
     if(usingMapboxBasemap && mapboxGlLayer){ map.removeLayer(mapboxGlLayer); }
@@ -2026,7 +2026,7 @@ function populateWorkFilterSelect(){
   canonWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
   pasticheWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
   const optHtml = ids => ids.map(id=>`<option value="${escapeAttr(id)}">${escapeHtml(DATA[id].name)}</option>`).join('');
-  sel.innerHTML = `<option value="">作品で絞り込み…</option>`
+  sel.innerHTML = `<option value="">全作品表示</option>`
     + (canonWorks.length ? `<optgroup label="正典（コナン・ドイル）">${optHtml(canonWorks)}</optgroup>` : '')
     + (pasticheWorks.length ? `<optgroup label="正典外（パスティーシュ等）">${optHtml(pasticheWorks)}</optgroup>` : '');
   if(prevValue && DATA[prevValue] && DATA[prevValue].type==='work'){

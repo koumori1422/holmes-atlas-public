@@ -3403,13 +3403,7 @@ function renderSearchResults(localIds, externalResults, query){
     btn.addEventListener('click', ()=>{
       const id = btn.dataset.local;
       saveRecentSearch(DATA[id].name);
-      if(DATA[id].type === 'place' && DATA[id].coords){
-        // 地名は、まず地図だけ移動する（説明ページはピンをタップしてから開く）
-        goToMap(id);
-      } else {
-        // 地図上にピンが無い項目（人物・作品など）は、そのまま説明ページを開く
-        showEntity(id);
-      }
+      showEntity(id); // 検索結果を選んだら、地名かどうかによらずそのまま説明ページを開く（以前の挙動に戻した）
       mapSearchResults.classList.remove('show'); mapSearchInput.value='';
     });
   });

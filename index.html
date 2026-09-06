@@ -113,6 +113,12 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .locate-map-btn:focus{outline:none;}
 .historic-toggle-btn:focus-visible,
 .locate-map-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
+/* 221Bへの直行ボタン。地図上の特別マーカー（.leaflet-holmes-special-icon）と
+   同じバーガンディ×金の配色にして、ここだけは特別な項目への近道だと分かるようにする */
+.baker-street-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--burgundy);border:2px solid var(--brass-light);color:#fff;cursor:pointer;font-size:.82rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.45);white-space:nowrap;flex:none;}
+.baker-street-btn:hover{filter:brightness(1.12);}
+.baker-street-btn:focus{outline:none;}
+.baker-street-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
 .nearby-panel{position:absolute;bottom:66px;right:16px;z-index:500;width:min(300px,80%);background:var(--parchment);border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-height:320px;overflow-y:auto;display:none;}
 .nearby-panel.show{display:block;}
 .nearby-panel-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
@@ -363,6 +369,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       </button>
       <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図に切り替え">🗺️ 古地図</button>
       <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示">正典登場地のみ</button>
+      <button class="baker-street-btn" id="bakerStreetBtn" title="221Bベーカー街のページへ一発で移動">🚪 221Bへ</button>
     </div>
     <div class="nearby-panel" id="nearbyPanel"></div>
     <div class="panel" id="panel">
@@ -1817,6 +1824,12 @@ coreOnlyBtn.addEventListener('click', ()=>{
   coreOnlyBtn.textContent = (coreOnlyFilter ? '✓ ' : '') + '正典登場地のみ';
   renderMarkers();
   renderIndex();
+});
+
+// 221Bへの直行ボタン。「一発で飛べる」ようにしたいとのことなので、地図を動かすだけの
+// goToMap()ではなく、showEntity()で説明ページまで一気に開く
+document.getElementById('bakerStreetBtn').addEventListener('click', ()=>{
+  showEntity('baker-street');
 });
 
 function fixMapSize(){ map.invalidateSize(); }

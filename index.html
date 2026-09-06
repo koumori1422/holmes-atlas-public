@@ -1895,12 +1895,13 @@ function renderMapLabels(){
 }
 
 // このズーム以上で「クラスタが完全に解除され、どのピンも個別に表示される」
-// （disableClusteringAtZoomと同じ値にしておく）。地名ラベルを常時表示する
-// かどうかも同じ閾値を使う。合体をゆるめた結果、街レベルのズームでも大量の
-// ピンが個別に出るようになったが、その全部に常時ラベルを付けると読めない
-// くらい重なってしまうため、「個別ピンにはなるが、名前は狭いうちは畳んでおき、
-// ここまで寄ったら名前も出す」という2段階にしている。
-const LABEL_VISIBLE_ZOOM = 17;
+const DECLUSTER_ZOOM = 17;
+// 地名ラベルを常時表示する閾値。中心ロンドンはピンが密集しすぎていて、
+// 個別表示になった直後（DECLUSTER_ZOOMと同じ値）だとまだ名前同士が
+// 重なって読めないため、あえて別の値にして、もう少し寄ってから名前が
+// 出るようにしている（historic地図のmaxZoomが18までなので、それでも
+// 名前が見られるよう18に設定。値は目安なので、実際の見え方次第で調整可）。
+const LABEL_VISIBLE_ZOOM = 18;
 // 検索や索引で選んだ項目のID。地図上でその項目のピンが今どのクラスタの中に
 // 隠れているかをハイライトするために使う（選択が無ければnull）。
 let selectedEntityId = null;
@@ -1915,7 +1916,7 @@ const markerClusterGroup = L.markerClusterGroup({
     if(zoom >= 12) return 30;
     return 45;
   },
-  disableClusteringAtZoom: LABEL_VISIBLE_ZOOM,
+  disableClusteringAtZoom: DECLUSTER_ZOOM,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
   iconCreateFunction: function(cluster){

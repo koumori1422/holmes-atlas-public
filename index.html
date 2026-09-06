@@ -1775,7 +1775,12 @@ async function geocodeSearch(query){
 }
 
 // ---------- 地図 ----------
-const map = L.map('map', {zoomControl:true, scrollWheelZoom:false}).setView([51.5074,-0.1278], 11);
+// maxZoomは地図(map)自身にも明示しておく。以前はOSMのtileLayerが常に最初から
+// addToされていたため、そこからLeafletが自動的にmaxZoomを拾えていたが、Mapbox
+// レイヤー(L.mapboxGL)はこの仕組みに対応しておらずmaxZoomを供給しない。その結果
+// map.getMaxZoom()がInfinityのままになり、Leaflet.markerclusterが
+// 「Uncaught Map has no maxZoom specified」で落ちてクラスタ表示が壊れていた。
+const map = L.map('map', {zoomControl:true, scrollWheelZoom:false, maxZoom:19}).setView([51.5074,-0.1278], 11);
 const mapEl = document.getElementById('map');
 let mapActive = false;
 map.scrollWheelZoom.disable();
@@ -1838,6 +1843,10 @@ function tryAddMapboxBasemap(){
       // なっていた不具合の修正：Mapbox側の読み込み完了もここでカウントする。
       tilesLoaded++;
       if(tilesErrored===0) mapStatusEl.classList.remove('show');
+      try{
+        glMap.addControl(new MapboxLanguage({ defaultLanguage: 'ja' }));
+        console.log('[holmes-atlas] MapboxLanguage(ja)を適用しました');
+      }catch(e){ console.error('MapboxLanguageの適用に失敗しました:', e); }
     });
     glMap.on('idle', ()=>{
       // styleとタイルの初回描画が完全に落ち着いたタイミング。読み込み完了の合図として

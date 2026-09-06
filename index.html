@@ -579,7 +579,17 @@ function openAuthModal(mode){
       showToast('登録しました。確認メールが届く場合は、案内に従ってください。');
     } else {
       const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if(error){ showToast('ログインに失敗しました：' + error.message); return; }
+      if(error){
+        console.error(error);
+        // SupabaseはBANによる拒否も、間違ったパスワードと同じような一般的な
+        // エラーとして返す場合があるため確実な判定はできないが、判別できる
+        // 場合はできるだけ分かりやすい文言に出し分ける。
+        const banned = error.status === 403 || /banned|suspended/i.test(error.message || '');
+        showToast(banned
+          ? 'ログインできませんでした。このアカウントは利用停止されています。'
+          : 'ログインできませんでした。メールアドレスとパスワードをご確認ください。');
+        return;
+      }
       closeModal();
       showToast('ログインしました。');
     }

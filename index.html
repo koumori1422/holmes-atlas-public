@@ -106,8 +106,12 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
    変わると隣とぶつかったり見た目がバラバラだったりしたため、仕切り線（.mt-div）で
    区切った1本の帯にし、状態のオン/オフは背景の塗りつぶしではなく文字色（金色）で
    示す形に統一した。221Bへだけは特別な項目への近道なので、バーガンディ色の
-   小さなピルとして帯の右端に残している。横幅が収まらない画面では、帯の中身だけ
-   横スクロールできるようにして、ボタン同士が折り返して縦に伸びるのを防いでいる。 */
+   小さなピルとして帯の右端に残している。
+   ★スマホ幅だと、全部のラベル文字を出したままでは帯が画面幅に収まりきらず、
+   右端の221Bへボタンなどが画面外に押し出されて見えなくなってしまっていた。
+   下の@media (max-width:480px)で、正典のみ・古地図はアイコンのみに縮め、
+   作品名セレクトの最大幅も絞ることで、スマホでも1行に収まるようにしている。
+   それでも収まりきらない場合の保険として、帯の中身だけ横スクロールもできる。 */
 .map-controls-cluster{position:absolute;bottom:16px;right:16px;z-index:500;display:flex;align-items:stretch;
   max-width:calc(100vw - 24px);height:44px;background:linear-gradient(180deg,#2a3547,var(--ink-2));
   border:1px solid var(--brass);border-radius:22px;box-shadow:0 4px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
@@ -122,13 +126,21 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .mt-icon-only{padding:0 11px;}
 .mt-icon-only .mt-ic{width:19px;height:19px;}
 /* 作品で絞り込みのセレクトは、ネイティブの<select>の見た目を消し（appearance:none）、
-   帯の中の他の項目と同じ「文字だけ」のセグメントに見せかける。矢印はCSSで別途重ねる。 */
+   帯の中の他の項目と同じ「文字だけ」のセグメントに見せかける。矢印はCSSで別途重ねる。
+   選ばれている作品名が長い場合に帯全体を押し広げないよう、はみ出た分は…で省略する。 */
 .mt-select-wrap{position:relative;padding:0 26px 0 12px;}
 .mt-select{appearance:none;-webkit-appearance:none;background:none;border:none;color:inherit;font:inherit;
-  cursor:pointer;max-width:min(150px,38vw);}
+  cursor:pointer;max-width:min(130px,32vw);overflow:hidden;text-overflow:ellipsis;}
 .mt-select.active{color:var(--brass-light);font-weight:600;}
 .mt-select option{color:#000;background:#fff;}
 .mt-chevron{position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.75;}
+@media (max-width:480px){
+  .mt-seg{padding:0 8px;gap:5px;}
+  .mt-seg-label{display:none;}
+  .mt-select-wrap{padding:0 22px 0 8px;}
+  .mt-select{max-width:64px;}
+  .mt-door{margin:5px 3px 5px 4px;padding:0 9px;}
+}
 /* 現在地マーカー：中心の点＋向きが分かったときだけ表示する三角のコーン。
    地図の地色（セピー掛かったベージュ〜緑系）に埋もれて見えにくかったため、
    コーンは彩度の高い金茶色（--brass）に変更し、白い縁取り（halo）を背後に
@@ -420,12 +432,12 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
     <div class="map-controls-cluster" id="mapControlsCluster">
       <button class="mt-seg" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示">
         <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5c3-1.5 6-1.5 8 0v14c-2-1.5-5-1.5-8 0V5Z"/><path d="M20 5c-3-1.5-6-1.5-8 0v14c2-1.5 5-1.5 8 0V5Z"/></svg>
-        <span>正典のみ</span>
+        <span class="mt-seg-label">正典のみ</span>
       </button>
       <span class="mt-div"></span>
       <button class="mt-seg" id="historicToggleBtn" title="ホームズ時代の古地図（英国陸地測量部の1:10,560地形図、1888〜1913年にかけて測量）に切り替え">
         <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6Z"/><path d="M9 4v14M15 6v14"/></svg>
-        <span id="historicToggleLabel">古地図</span>
+        <span id="historicToggleLabel" class="mt-seg-label">古地図</span>
       </button>
       <span class="mt-div"></span>
       <span class="mt-seg mt-select-wrap">

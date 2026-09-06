@@ -1894,6 +1894,13 @@ function renderMapLabels(){
   });
 }
 
+// このズーム以上で「クラスタが完全に解除され、どのピンも個別に表示される」
+// （disableClusteringAtZoomと同じ値にしておく）。地名ラベルを常時表示する
+// かどうかも同じ閾値を使う。合体をゆるめた結果、街レベルのズームでも大量の
+// ピンが個別に出るようになったが、その全部に常時ラベルを付けると読めない
+// くらい重なってしまうため、「個別ピンにはなるが、名前は狭いうちは畳んでおき、
+// ここまで寄ったら名前も出す」という2段階にしている。
+const LABEL_VISIBLE_ZOOM = 17;
 // 検索や索引で選んだ項目のID。地図上でその項目のピンが今どのクラスタの中に
 // 隠れているかをハイライトするために使う（選択が無ければnull）。
 let selectedEntityId = null;
@@ -1908,7 +1915,7 @@ const markerClusterGroup = L.markerClusterGroup({
     if(zoom >= 12) return 30;
     return 45;
   },
-  disableClusteringAtZoom: 17,
+  disableClusteringAtZoom: LABEL_VISIBLE_ZOOM,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
   iconCreateFunction: function(cluster){
@@ -1993,7 +2000,7 @@ function renderMarkers(){
 }
 map.on('zoomend', ()=>{
   const el = map.getContainer();
-  if(map.getZoom()<14) el.classList.add('hide-place-labels'); else el.classList.remove('hide-place-labels');
+  if(map.getZoom()<LABEL_VISIBLE_ZOOM) el.classList.add('hide-place-labels'); else el.classList.remove('hide-place-labels');
 });
 // 登録済みの地点（ピン）以外の、地図上の任意の場所でもGoogleマップを開けるように。
 // ピンやクラスタ自体のクリックはLeaflet側で自動的にこちらへは伝わらないので、
@@ -2011,7 +2018,7 @@ map.on('click', (ev)=>{
     )
     .openOn(map);
 });
-if(map.getZoom()<14) map.getContainer().classList.add('hide-place-labels');
+if(map.getZoom()<LABEL_VISIBLE_ZOOM) map.getContainer().classList.add('hide-place-labels');
 
 let journalMarkers = [];
 function renderJournalMarkers(){

@@ -1427,6 +1427,12 @@ async function resolveAmbiguousLink(entityId, token, chosenId, displayText){
 }
 function fmtDate(ts){ return new Date(ts).toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 function showToast(msg){
+  // スマホでは入力欄にフォーカスしたままだとソフトウェアキーボードが開いていて、
+  // 画面下端固定のトーストがその裏に隠れて見えないことがある。表示前にフォーカスを
+  // 外してキーボードを閉じ、トーストが確実に見えるようにする。
+  if(document.activeElement && typeof document.activeElement.blur === 'function'){
+    document.activeElement.blur();
+  }
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2600);

@@ -1810,6 +1810,10 @@ const mapboxConfigured = mapboxLibsReady && !MAPBOX_TOKEN.includes('YOUR_MAPBOX'
 let usingMapboxBasemap = false;
 let mapboxGlLayer = null;
 let mapboxErrorTimestamps = [];
+// Mapboxの読み込みが繰り返し失敗した場合に立てる「今後このセッション中はもうMapboxを
+// 使わない」というフラグ。ズームによる一時的なOSM退避（mapboxSuspendedForZoom）とは
+// 区別する：あちらは元のズームに戻れば再びMapboxに戻ってよいが、こちらは戻さない。
+let mapboxPermanentlyFailed = false;
 
 function addOsmTiles(){
   if(!map.hasLayer(tileLayer)) tileLayer.addTo(map);
@@ -1818,11 +1822,38 @@ function addOsmTiles(){
 // Mapboxの読み込みが（クォータ超過・トークン失効・通信障害などで）短時間に繰り返し失敗した場合、
 // サイトの地図表示自体が壊れてしまわないよう、自動的にOSM地図へ切り替える安全策。
 function fallbackToOsmTiles(reason){
+  mapboxPermanentlyFailed = true;
   if(!usingMapboxBasemap) return;
   usingMapboxBasemap = false;
   try{ if(mapboxGlLayer && map.hasLayer(mapboxGlLayer)) map.removeLayer(mapboxGlLayer); }catch(e){}
   addOsmTiles();
   console.warn('Mapboxの地図を読み込めなかったため、通常の地図に切り替えました:', reason);
+}
+
+// ---------- 低ズーム（世界全体を見渡すレベル）での自動フォールバック ----------
+// mapbox-gl-leaflet（MapboxをLeafletに組み込むための橋渡しライブラリ）には、
+// 大きくズームアウトするとピンの表示位置がズレる既知の未解決の不具合がある
+// （ライブラリ側の実験的機能扱いで、明確な修正はまだ無い）。ある特定のズーム
+// より下で必ず起きるわけではなく不規則に起きうるとの報告もあるため、安全側に
+// 倒して、この閾値より低いズームでは常にOSM地図（位置は正確、日本語化はされない）
+// に自動的に切り替える。閾値以上に戻れば再びMapboxに戻る。
+const MAPBOX_MIN_SAFE_ZOOM = 4;
+function updateBasemapForZoom(){
+  if(!mapboxConfigured || mapboxPermanentlyFailed || !mapboxGlLayer) return;
+  if(showingHistoric) return; // 古地図表示中はこちらの切り替えに関与しない
+  if(map.getZoom() < MAPBOX_MIN_SAFE_ZOOM){
+    if(usingMapboxBasemap){
+      try{ if(map.hasLayer(mapboxGlLayer)) map.removeLayer(mapboxGlLayer); }catch(e){}
+      usingMapboxBasemap = false;
+    }
+    addOsmTiles();
+  } else {
+    if(!usingMapboxBasemap){
+      try{ if(map.hasLayer(tileLayer)) map.removeLayer(tileLayer); }catch(e){}
+      mapboxGlLayer.addTo(map);
+      usingMapboxBasemap = true;
+    }
+  }
 }
 
 function tryAddMapboxBasemap(){
@@ -1930,9 +1961,11 @@ historicToggleBtn.addEventListener('click', ()=>{
     getHistoricLayer().addTo(map);
   } else {
     map.removeLayer(getHistoricLayer());
-    // 元がMapboxだった場合はMapboxへ、OSMへフォールバック済みだった場合はOSMへ戻す
+    // 元の状態（Mapbox/OSM）に戻す。古地図を見ている間にズームが変わっている
+    // 可能性もあるので、現在のズームに応じた判定をここで改めて行う。
     if(usingMapboxBasemap && mapboxGlLayer){ mapboxGlLayer.addTo(map); }
     else { addOsmTiles(); }
+    updateBasemapForZoom();
   }
 });
 
@@ -2123,6 +2156,8 @@ map.on('zoomend', ()=>{
   const el = map.getContainer();
   if(map.getZoom()<LABEL_VISIBLE_ZOOM) el.classList.add('hide-place-labels'); else el.classList.remove('hide-place-labels');
 });
+map.on('zoomend', updateBasemapForZoom);
+updateBasemapForZoom(); // 初期表示のズームに応じた状態を最初に一度合わせておく
 // 登録済みの地点（ピン）以外の、地図上の任意の場所でもGoogleマップを開けるように。
 // ピンやクラスタ自体のクリックはLeaflet側で自動的にこちらへは伝わらないので、
 // 何も無い場所をタップ/クリックしたときだけポップアップが出る。

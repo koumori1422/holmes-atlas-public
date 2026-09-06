@@ -2000,7 +2000,7 @@ function goToMap(id){
 const overlay = document.getElementById('modalOverlay');
 const modalBody = document.getElementById('modalBody');
 function closeModal(){ overlay.classList.remove('open'); modalBody.innerHTML=''; }
-const LEGAL_CONTACT = 'ここに連絡先（メールアドレス等）を記載してください';
+const LEGAL_CONTACT = 'holmesatlas.info@gmail.com';
 function openLegalModal(){
   modalBody.innerHTML = `
     <h3>利用規約・プライバシーポリシー</h3>
@@ -2017,7 +2017,7 @@ function openLegalModal(){
       <p>会員登録の際に、メールアドレス・表示名をお預かりします。また、訪問記録・感想・写真・返信など、みなさまが投稿した内容を保存します。これらは本サイトの機能提供（ログイン、投稿の表示、不正利用への対応）の目的でのみ利用し、法令に基づく場合を除き第三者に提供・販売することはありません。</p>
       <p>データはSupabase（クラウドデータベースサービス）上に保存されます。Googleアカウントでログインする場合は、Googleのプライバシーポリシーも適用されます。</p>
       <p>表示名の変更や、ご自身の投稿の削除はいつでも行えます。アカウント（アカウント画面）から、アカウント本体・個人メモ・お気に入り・ご自身の投稿をまとめて削除することもできます。それ以外のお問い合わせは下記までご連絡ください。</p>
-      <p><strong>お問い合わせ先</strong><br>${LEGAL_CONTACT}</p>
+      <p><strong>お問い合わせ先</strong><br><a href="mailto:${LEGAL_CONTACT}">${LEGAL_CONTACT}</a></p>
     </div>
     <div class="modal-actions"><button class="modal-cancel" id="legal-close">閉じる</button></div>`;
   overlay.classList.add('open');

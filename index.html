@@ -1487,7 +1487,10 @@ function findLinkCandidates(token){
   return Object.keys(DATA).filter(id=>fuzzyMatch(DATA[id].name, token));
 }
 function parseDescSegments(desc){
-  const regex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+  // 日本語入力（全角モード）で書いていると、半角のはずの[[ ]]や｜が
+  // うっかり全角の［［ ］］｜になっていることがあるため、どちらで書いても
+  // 同じようにリンクとして認識されるようにしている。
+  const regex = /[\[［]{2}([^\]］|｜]+?)(?:[|｜]([^\]］]+?))?[\]］]{2}/g;
   const segments = [];
   let lastIndex = 0, m;
   while((m = regex.exec(desc)) !== null){
@@ -1542,7 +1545,7 @@ function openDisambiguateModal(entityId, token, candidates, displayText){
 }
 async function resolveAmbiguousLink(entityId, token, chosenId, displayText){
   const e = DATA[entityId];
-  const pattern = new RegExp('\\[\\[' + escapeRegExp(token) + '(\\|[^\\]]+)?\\]\\]');
+  const pattern = new RegExp('[\\[［]{2}' + escapeRegExp(token) + '(?:[|｜][^\\]］]+)?[\\]］]{2}');
   const newDesc = e.desc.replace(pattern, `[[${chosenId}|${displayText}]]`);
   overrides[entityId] = overrides[entityId] || {};
   overrides[entityId].desc = newDesc;
@@ -2732,7 +2735,7 @@ function openEntityModal(prefill){
       <label>正典 / 正典外</label>
       <select id="f-canon"><option value="true">正典（コナン・ドイルの原作）</option><option value="false">正典外（パスティーシュ・映像化・翻案など）</option></select>
     </div>
-    <div class="field"><label>説明文</label><textarea id="f-desc"></textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります（表示を変えたい場合は <code>[[holmes|彼]]</code> のように｜で区切って指定）。</div></div>
+    <div class="field"><label>説明文</label><textarea id="f-desc"></textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります（表示を変えたい場合は <code>[[holmes|彼]]</code> のように｜で区切って指定。全角の <code>［［ ］］｜</code> で書いても構いません）。</div></div>
     ${renderImageField(null)}
     <div class="field"><label>関連付ける項目（任意）</label><div class="checklist">${relatedChecklist(null)}</div></div>
     <div class="modal-actions"><button class="modal-cancel" id="f-cancel">キャンセル</button><button class="modal-submit" id="f-submit">追加する</button></div>`;
@@ -2811,7 +2814,7 @@ function openEditModal(targetId){
     <h3>編集する — ${e.name}</h3>
     <div class="modal-sub">${reviewModalSub('保存するとその場で反映されます。')}</div>
     <div class="field"><label>名称</label><input type="text" id="f-name" value="${escapeAttr(e.name)}"></div>
-    <div class="field"><label>新しい説明文</label><textarea id="f-desc">${escapeHtml(e.desc)}</textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります。</div></div>
+    <div class="field"><label>新しい説明文</label><textarea id="f-desc">${escapeHtml(e.desc)}</textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります（全角の <code>［［ ］］｜</code> でも構いません）。</div></div>
     ${renderImageField(e)}
     ${e.type==='place' ? `
     <div class="field">

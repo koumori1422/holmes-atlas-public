@@ -77,8 +77,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .map-status.show{display:block;}
 .map-search{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:600;width:min(380px,82%);}
 .stage:has(.panel.open, .timeline.open) .map-search,
-.stage:has(.panel.open, .timeline.open) .locate-map-btn,
-.stage:has(.panel.open, .timeline.open) .historic-toggle-btn{display:none;}
+.stage:has(.panel.open, .timeline.open) .map-controls-cluster{display:none;}
 .map-search-row{display:flex;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);border-radius:3px;}
 .map-search-row input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:3px 0 0 3px;font-size:.9rem;background:#fff;color:var(--charcoal);}
 .map-search-row button{background:var(--brass);border:none;color:#fff;padding:0 16px;border-radius:0;cursor:pointer;font-size:.85rem;}
@@ -95,10 +94,16 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .alias-register-row input{flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:3px;font-size:.8rem;}
 .alias-register-row button{background:var(--brass);border:none;color:#fff;padding:0 12px;border-radius:3px;cursor:pointer;font-size:.8rem;white-space:nowrap;}
 .search-popup-btn{background:var(--brass);border:none;color:#fff;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:.8rem;margin-top:4px;}
-.locate-map-btn{position:absolute;bottom:16px;right:16px;z-index:500;width:42px;height:42px;border-radius:50%;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);}
+/* 現在地・古地図・正典フィルタの3ボタンをまとめる入れ物。
+   以前はそれぞれ right:16px/66px/150px という固定値で個別に位置指定していたが、
+   ボタンの文言が状態によって変わる（例：「正典登場地のみ」⇔「全て表示」）ため、
+   文字幅がずれると隣のボタンと重なってしまっていた。flexboxで並べて自動的に
+   間隔を取るようにし、文言の長さが変わっても重ならないようにする。 */
+.map-controls-cluster{position:absolute;bottom:16px;right:16px;z-index:500;display:flex;flex-direction:row-reverse;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;max-width:calc(100vw - 24px);}
+.locate-map-btn{width:42px;height:42px;border-radius:50%;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);flex:none;}
 .locate-map-btn:hover{border-color:var(--brass);}
 .locate-map-btn svg{width:20px;height:20px;}
-.historic-toggle-btn{position:absolute;bottom:16px;right:66px;z-index:500;height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;}
+.historic-toggle-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;flex:none;}
 .historic-toggle-btn:hover{border-color:var(--brass);}
 .historic-toggle-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);}
 .nearby-panel{position:absolute;bottom:66px;right:16px;z-index:500;width:min(300px,80%);background:var(--parchment);border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-height:320px;overflow-y:auto;display:none;}
@@ -320,7 +325,6 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
   <div class="header">
     <svg class="seal" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="#ab8347" stroke-width="2"/><circle cx="20" cy="20" r="6" fill="#ab8347"/></svg>
     <h1>ホームズ・アトラス</h1>
-    <span class="sub">— 開発中</span>
     <div class="header-spacer"></div>
     <button class="hbtn index-toggle" id="indexToggle">索引</button>
     <div class="action-btns" id="actionBtns">
@@ -346,11 +350,13 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       </div>
       <div class="map-search-results" id="mapSearchResults"></div>
     </div>
-    <button class="locate-map-btn" id="locateMapBtn" title="現在地から探す" aria-label="現在地から近い場所を探す">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-    </button>
-    <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図に切り替え">🗺️ 古地図</button>
-    <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示" style="right:150px;">正典登場地のみ</button>
+    <div class="map-controls-cluster" id="mapControlsCluster">
+      <button class="locate-map-btn" id="locateMapBtn" title="現在地から探す" aria-label="現在地から近い場所を探す">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+      <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図に切り替え">🗺️ 古地図</button>
+      <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示">正典登場地のみ</button>
+    </div>
     <div class="nearby-panel" id="nearbyPanel"></div>
     <div class="panel" id="panel">
       <button class="panel-close" id="panelClose">×</button>
@@ -1870,7 +1876,16 @@ function renderMapLabels(){
 // 隠れているかをハイライトするために使う（選択が無ければnull）。
 let selectedEntityId = null;
 const markerClusterGroup = L.markerClusterGroup({
-  maxClusterRadius: 45,
+  // ズームレベルに応じて合体しやすさを変える。国・都市全体を見るような広い
+  // ズームでは今まで通りまとめて見やすくし、通り・街区レベルまで寄ったら
+  // 「ほぼ完全に重なっているピンだけ」合体するようにして、隣接した別の地点が
+  // 不必要に「2件」とまとめられてしまうのを防ぐ（数値は目安。実際の地図で見て
+  // 違和感があれば調整してください）。
+  maxClusterRadius: function(zoom){
+    if(zoom >= 15) return 16;
+    if(zoom >= 12) return 30;
+    return 45;
+  },
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,

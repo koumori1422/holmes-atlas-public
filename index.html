@@ -1831,6 +1831,10 @@ function tryAddMapboxBasemap(){
     mapboxGlLayer = L.mapboxGL({
       accessToken: MAPBOX_TOKEN,
       style: 'mapbox://styles/mapbox/streets-v12',
+      // Mapbox GL JSは低ズーム時に自動で立体の地球儀表示(globe)に切り替わる仕様があるが、
+      // Leafletのピン配置は平面のメルカトル図法を前提に計算しているため、球体表示になると
+      // ピンの位置が海上や画面外にズレてしまう。常に平面(mercator)に固定して防ぐ。
+      projection: 'mercator',
       // Mapbox GL JS本体に組み込まれている言語指定機能（v2.11以降、classicスタイルにも対応）。
       // 以前使っていたmapbox-gl-languageプラグインは、streets-v12の内部構造と噛み合わず
       // エラーも出さずに何も変えない状態だったため、公式サポートのこちらの方式に切り替えた。
@@ -1846,6 +1850,11 @@ function tryAddMapboxBasemap(){
       // なっていた不具合の修正：Mapbox側の読み込み完了もここでカウントする。
       tilesLoaded++;
       if(tilesErrored===0) mapStatusEl.classList.remove('show');
+      // コンストラクタのprojectionオプションだけでも効くはずだが、念のため明示的にも固定しておく
+      // （globe表示になるとLeafletのピン位置がズレるため）。
+      try{
+        if(typeof glMap.setProjection === 'function') glMap.setProjection('mercator');
+      }catch(e){ console.error('setProjection(mercator)の適用に失敗しました:', e); }
       // コンストラクタのlanguageオプションだけでも効くはずだが、念のため明示的にも呼んでおく。
       try{
         if(typeof glMap.setLanguage === 'function'){

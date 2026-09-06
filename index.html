@@ -377,6 +377,15 @@ function getDisplayName(user){
   const m = user.user_metadata || {};
   return m.display_name || m.full_name || m.name || user.email;
 }
+// 表示名の簡易重複チェック。DB側で一意制約をかけているわけではなく、
+// 公開されている投稿(p-journal)のauthorNameと完全一致するものが無いか見て
+// 警告を出すだけ（なりすまし防止の軽い抑止力）。偶然の同名や、まだ一度も
+// 投稿していない会員の名前とはぶつからないので、本人が確認の上そのまま
+// 使うことは可能。
+function isDisplayNameTaken(name, excludeUserId){
+  const norm = name.trim().toLowerCase();
+  return journal.some(j => j.authorName && j.authorId !== excludeUserId && j.authorName.trim().toLowerCase() === norm);
+}
 // ---------- 審査担当者 ----------
 let reviewerEmails = [];
 async function loadReviewers(){
@@ -497,6 +506,35 @@ async function deleteMyAccount(){
     showToast('削除に失敗しました。通信環境をご確認の上もう一度お試しください。');
   }
 }
+// 審査ダッシュボードから、問題のある投稿者のアカウントをBAN（ログイン停止）する。
+// 実体はSupabase Auth標準のban_duration機能で、サーバー側（Edge Function）で
+// 「呼び出した人が本当に審査担当者か」を確認してから実行する。
+// 解除（unban）専用のUIは作っていないので、必要ならSupabaseダッシュボードの
+// Authentication > Users から行ってください。
+async function banUser(targetUserId, targetName){
+  if(!targetUserId){ showToast('対象のユーザーが特定できませんでした。'); return; }
+  const label = targetName || '（表示名不明）';
+  if(!confirm(`「${label}」さんのアカウントをBAN（ログイン停止）します。よろしいですか？\n\n※既存の投稿は消えません。過去の投稿は今まで通り個別に削除してください。\n※解除したい場合はSupabaseダッシュボードから行う必要があります。`)) return;
+  try{
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if(!token){ showToast('ログイン状態が確認できませんでした。'); return; }
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/set-user-ban`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_user_id: targetUserId, ban: true })
+    });
+    if(!res.ok){
+      const body = await res.json().catch(()=>({}));
+      showToast('BANに失敗しました：' + (body.error || res.status));
+      return;
+    }
+    showToast(`${label}さんをBANしました。`);
+  }catch(e){
+    console.error(e);
+    showToast('BANに失敗しました。通信環境をご確認の上もう一度お試しください。');
+  }
+}
 function openAuthModal(mode){
   const isSignup = mode==='signup';
   modalBody.innerHTML = `
@@ -534,6 +572,7 @@ function openAuthModal(mode){
     if(isSignup){
       const name = document.getElementById('auth-name').value.trim();
       if(!name){ showToast('お名前を入力してください。'); return; }
+      if(isDisplayNameTaken(name, null) && !confirm(`「${name}」という表示名は、既に使われている可能性があります。このまま登録しますか？`)) return;
       const { error } = await supabaseClient.auth.signUp({ email, password, options:{ data:{ display_name: name } } });
       if(error){ showToast('登録に失敗しました：' + error.message); return; }
       closeModal();
@@ -560,6 +599,7 @@ async function openEditNameModal(){
   document.getElementById('editname-submit').addEventListener('click', async ()=>{
     const name = document.getElementById('editname-input').value.trim();
     if(!name){ showToast('表示名を入力してください。'); return; }
+    if(isDisplayNameTaken(name, currentUser.id) && !confirm(`「${name}」という表示名は、既に使われている可能性があります。このまま変更しますか？`)) return;
     const { data, error } = await supabaseClient.auth.updateUser({ data: { display_name: name } });
     if(error){ showToast('変更に失敗しました：' + error.message); return; }
     currentUser = data.user;
@@ -1197,11 +1237,22 @@ async function safeSet(key, value){
 async function callRpc(fn, args){
   try{
     const { error } = await supabaseClient.rpc(fn, args);
-    if(error){ console.error(error); showToast('保存に失敗しました。'); return false; }
+    if(error){
+      console.error(error);
+      if(error.message && error.message.includes('rate_limited')){
+        showToast('投稿の間隔が短すぎます。少し時間を空けてからもう一度お試しください。');
+      } else {
+        showToast('保存に失敗しました。');
+      }
+      return false;
+    }
     return true;
   }catch(e){ console.error(e); showToast('保存に失敗しました。'); return false; }
 }
 function rpcArrAppend(key, item){ return callRpc('atlas_arr_append', { p_key:key, p_item:item }); }
+// p-journal / p-proposals / p-reports への投稿は連投防止のため、こちらの
+// レート制限つきの関数を使う（直近10分に本人から5件を超えたら拒否される）。
+function rpcArrAppendLimited(key, item){ return callRpc('atlas_arr_append_limited', { p_key:key, p_item:item }); }
 function rpcArrPatch(key, id, patch){ return callRpc('atlas_arr_patch', { p_key:key, p_id:id, p_patch:patch }); }
 function rpcArrRemove(key, id){ return callRpc('atlas_arr_remove', { p_key:key, p_id:id }); }
 function rpcArrToggleMember(key, id, field, value){ return callRpc('atlas_arr_toggle_member', { p_key:key, p_id:id, p_field:field, p_value:value }); }
@@ -1226,7 +1277,7 @@ function buildProposalRecord(kind, targetType, targetId, draft){
 async function submitProposal(kind, targetType, targetId, draft){
   const record = buildProposalRecord(kind, targetType, targetId, draft);
   proposals.push(record);
-  await rpcArrAppend('p-proposals', record);
+  await rpcArrAppendLimited('p-proposals', record);
   return record;
 }
 
@@ -2462,7 +2513,7 @@ async function openReportModal(journalId){
       status: 'pending', createdAt: Date.now()
     };
     reports.push(newReport);
-    await rpcArrAppend('p-reports', newReport);
+    await rpcArrAppendLimited('p-reports', newReport);
     closeModal(); showToast('通報しました。ご協力ありがとうございます。');
   });
 }
@@ -2484,6 +2535,7 @@ function renderReportCard(r){
     </div>
     <div class="proposal-actions">
       ${j ? `<button class="danger-delete-btn" id="report-delete-${r.id}">投稿を削除する</button>` : ''}
+      ${j ? `<button class="danger-delete-btn" id="report-ban-${r.id}">投稿者をBANする</button>` : ''}
       <button class="modal-cancel" id="report-dismiss-${r.id}">問題なし（却下）</button>
     </div>
   </div>`;
@@ -2522,10 +2574,13 @@ function openReviewDashboard(){
   pendingReports.forEach(r=>{
     document.getElementById('report-delete-'+r.id)?.addEventListener('click', ()=>resolveReport(r.id, true));
     document.getElementById('report-dismiss-'+r.id)?.addEventListener('click', ()=>resolveReport(r.id, false));
+    const j = journal.find(x=>x.id===r.journalId);
+    if(j) document.getElementById('report-ban-'+r.id)?.addEventListener('click', ()=>banUser(j.authorId, j.authorName));
   });
   pending.forEach(p=>{
     document.getElementById('approve-'+p.id)?.addEventListener('click', ()=>approveProposal(p.id));
     document.getElementById('reject-'+p.id)?.addEventListener('click', ()=>rejectProposal(p.id));
+    document.getElementById('ban-'+p.id)?.addEventListener('click', ()=>banUser(p.authorId, p.authorName));
   });
 }
 function renderProposalCard(p){
@@ -2567,6 +2622,7 @@ function renderProposalCard(p){
     <div class="proposal-actions">
       <button class="modal-submit" id="approve-${p.id}">承認する</button>
       <button class="danger-delete-btn" id="reject-${p.id}">却下する</button>
+      <button class="danger-delete-btn" id="ban-${p.id}">投稿者をBANする</button>
     </div>
   </div>`;
 }
@@ -2869,7 +2925,7 @@ function openJournalModal(prefill){
       await safeSet(privateNotesKey(), privateNotes);
     } else {
       journal.push(record);
-      await rpcArrAppend('p-journal', record);
+      await rpcArrAppendLimited('p-journal', record);
     }
     clearDraft('journal', journalDraftId);
     closeModal(); showToast('保存しました。');

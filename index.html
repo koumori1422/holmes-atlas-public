@@ -3350,7 +3350,18 @@ function renderSearchResults(localIds, externalResults, query){
   mapSearchResults.innerHTML = html;
   mapSearchResults.classList.add('show');
   mapSearchResults.querySelectorAll('[data-local]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ saveRecentSearch(DATA[btn.dataset.local].name); showEntity(btn.dataset.local); mapSearchResults.classList.remove('show'); mapSearchInput.value=''; });
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.local;
+      saveRecentSearch(DATA[id].name);
+      if(DATA[id].type === 'place' && DATA[id].coords){
+        // 地名は、まず地図だけ移動する（説明ページはピンをタップしてから開く）
+        goToMap(id);
+      } else {
+        // 地図上にピンが無い項目（人物・作品など）は、そのまま説明ページを開く
+        showEntity(id);
+      }
+      mapSearchResults.classList.remove('show'); mapSearchInput.value='';
+    });
   });
   if(externalResults){
     mapSearchResults.querySelectorAll('[data-ext]').forEach(btn=>{

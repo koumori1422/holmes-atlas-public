@@ -1792,7 +1792,11 @@ const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.pn
 tileLayer.on('tileerror', ()=>{ tilesErrored++; mapStatusEl.textContent='地図タイルを読み込めませんでした'; mapStatusEl.classList.add('show'); });
 tileLayer.on('tileload', ()=>{ tilesLoaded++; if(tilesErrored===0) mapStatusEl.classList.remove('show'); });
 mapStatusEl.classList.add('show');
-setTimeout(()=>{ if(tilesLoaded===0 && tilesErrored===0) mapStatusEl.textContent='地図の読み込みに時間がかかっています…'; }, 4000);
+// Mapboxのベクター地図はstyle・スプライト・フォント・タイルなど複数の読み込みを経てから
+// 表示されるため、OSMの単純な画像タイルより初回表示にやや時間がかかる。誤って「時間が
+// かかっています」の警告を出さないよう、Mapboxを使う可能性がある場合は待ち時間を長めにする。
+const mapboxWillBeTried = (typeof mapboxgl !== 'undefined') && (typeof L.mapboxGL === 'function') && !MAPBOX_TOKEN.includes('YOUR_MAPBOX');
+setTimeout(()=>{ if(tilesLoaded===0 && tilesErrored===0) mapStatusEl.textContent='地図の読み込みに時間がかかっています…'; }, mapboxWillBeTried ? 8000 : 4000);
 
 // ---------- メイン地図レイヤー：Mapbox（日本語ラベル）を優先し、失敗時はOSM地図へ自動フォールバック ----------
 // MAPBOX_TOKENが未設定（プレースホルダーのまま）、あるいはMapbox関連スクリプトが
@@ -1829,11 +1833,21 @@ function tryAddMapboxBasemap(){
 
     const glMap = mapboxGlLayer.getMapboxMap();
     glMap.on('load', ()=>{
-      try{
-        glMap.addControl(new MapboxLanguage({ defaultLanguage: 'ja' }));
-      }catch(e){ console.error('MapboxLanguageの適用に失敗しました:', e); }
+      // OSM地図用のtileLayerが動いていない間はtilesLoaded/tilesErroredが
+      // 更新されず、「読み込みに時間がかかっています」の警告が消えないままに
+      // なっていた不具合の修正：Mapbox側の読み込み完了もここでカウントする。
+      tilesLoaded++;
+      if(tilesErrored===0) mapStatusEl.classList.remove('show');
+    });
+    glMap.on('idle', ()=>{
+      // styleとタイルの初回描画が完全に落ち着いたタイミング。読み込み完了の合図として
+      // 念のためここでも警告を消しておく（loadイベントより後に発火することがあるため）。
+      if(tilesErrored===0) mapStatusEl.classList.remove('show');
     });
     glMap.on('error', (e)=>{
+      tilesErrored++;
+      mapStatusEl.textContent = '地図タイルを読み込めませんでした';
+      mapStatusEl.classList.add('show');
       const now = Date.now();
       mapboxErrorTimestamps.push(now);
       mapboxErrorTimestamps = mapboxErrorTimestamps.filter(t => now - t < 10000);

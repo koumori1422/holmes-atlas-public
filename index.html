@@ -32,6 +32,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .hbtn{background:none;border:1px solid var(--line);color:var(--fog);font-size:.82rem;padding:6px 12px;border-radius:3px;cursor:pointer;white-space:nowrap;}
 .auth-area{display:inline-flex;align-items:center;gap:8px;margin-left:6px;}
 .link-btn{background:none;border:none;color:var(--brass);text-decoration:underline;cursor:pointer;padding:0;font-size:inherit;}
+.draft-banner{background:var(--parchment-2);border:1px solid var(--line);border-radius:4px;padding:8px 10px;margin:0 0 12px;font-size:.8rem;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.draft-banner-actions{white-space:nowrap;}
 .google-auth-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;border:1px solid var(--line);color:#3c3c3c;padding:9px;border-radius:4px;cursor:pointer;font-size:.88rem;margin-top:8px;}
 .google-auth-btn:hover{background:#f5f5f5;}
 .auth-divider{text-align:center;font-size:.75rem;color:var(--slate);margin:14px 0;position:relative;}
@@ -1306,6 +1308,74 @@ function showToast(msg){
   t.textContent = msg; t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2600);
 }
+// ---------- フォームの一時保存（下書き） ----------
+// ブラウザのlocalStorageにのみ保存され、サーバーには送られない。
+// アカウントごとに分けて保存する（同じ端末で複数アカウントを使っても混ざらないように）。
+function draftKey(formType, id){
+  const uid = currentUser ? currentUser.id : 'anon';
+  return 'holmes-atlas-draft:' + uid + ':' + formType + ':' + (id || 'new');
+}
+function saveDraft(formType, id, data){
+  try{ localStorage.setItem(draftKey(formType, id), JSON.stringify({data, savedAt: Date.now()})); }catch(e){}
+}
+function loadDraft(formType, id){
+  try{
+    const raw = localStorage.getItem(draftKey(formType, id));
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && parsed.data) ? parsed : null;
+  }catch(e){ return null; }
+}
+function clearDraft(formType, id){
+  try{ localStorage.removeItem(draftKey(formType, id)); }catch(e){}
+}
+// fieldIds: 自動保存の対象にする<input>/<textarea>のid一覧
+// getExtra: フォーム部品以外の状態（公開範囲トグル等）も保存したい場合に使う
+function wireDraftAutosave(formType, id, fieldIds, getExtra){
+  const collect = ()=>{
+    const data = {};
+    fieldIds.forEach(fid=>{
+      const el = document.getElementById(fid);
+      if(el) data[fid] = el.value;
+    });
+    if(getExtra) Object.assign(data, getExtra());
+    return data;
+  };
+  let debounceTimer;
+  const handler = ()=>{
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(()=>saveDraft(formType, id, collect()), 600);
+  };
+  fieldIds.forEach(fid=>{
+    const el = document.getElementById(fid);
+    if(el) el.addEventListener('input', handler);
+  });
+}
+function applyDraftFields(draftData, fieldIds){
+  fieldIds.forEach(fid=>{
+    const el = document.getElementById(fid);
+    if(el && draftData[fid] !== undefined) el.value = draftData[fid];
+  });
+}
+// フォームの先頭に「下書きが残っています」バナーを差し込み、復元/破棄を選ばせる
+function insertDraftBanner(anchorSelector, draft, onRestore, onDiscard){
+  const anchor = modalBody.querySelector(anchorSelector) || modalBody.firstElementChild;
+  const bannerEl = document.createElement('div');
+  bannerEl.className = 'draft-banner';
+  const savedAgo = Math.max(1, Math.round((Date.now() - draft.savedAt) / 60000));
+  bannerEl.innerHTML = `<span>📝 ${savedAgo}分前の下書きが残っています。</span>
+    <span class="draft-banner-actions"><button type="button" class="link-btn" id="draft-restore-btn">復元する</button> / <button type="button" class="link-btn" id="draft-discard-btn">破棄する</button></span>`;
+  anchor.insertAdjacentElement('afterend', bannerEl);
+  document.getElementById('draft-restore-btn').addEventListener('click', ()=>{
+    onRestore();
+    bannerEl.remove();
+    showToast('下書きを復元しました。');
+  });
+  document.getElementById('draft-discard-btn').addEventListener('click', ()=>{
+    onDiscard();
+    bannerEl.remove();
+  });
+}
 // ---------- 画像の拡大表示（ライトボックス） ----------
 const lightboxOverlay = document.getElementById('lightboxOverlay');
 const lightboxImg = document.getElementById('lightboxImg');
@@ -2074,6 +2144,16 @@ function openEntityModal(prefill){
   if(prefill) typeSelect.value='place';
   sync();
   wireImageUpload('f-image-file','f-image-preview', d=>uploadedImageData=d);
+  const newEntityDraftFields = ['f-type','f-name','f-desc','f-image','f-lat','f-lng','f-relevance','f-canon'];
+  const newEntityDraft = loadDraft('newEntity', 'new');
+  if(newEntityDraft){
+    insertDraftBanner('.modal-sub', newEntityDraft, ()=>{
+      applyDraftFields(newEntityDraft.data, newEntityDraftFields);
+      sync();
+    }, ()=>clearDraft('newEntity', 'new'));
+  }
+  wireDraftAutosave('newEntity', 'new', newEntityDraftFields);
+  typeSelect.addEventListener('change', ()=>saveDraft('newEntity', 'new', newEntityDraftFields.reduce((acc,fid)=>{ const el=document.getElementById(fid); if(el) acc[fid]=el.value; return acc; }, {})));
   document.getElementById('f-geo-search').addEventListener('click', async ()=>{
     const q = document.getElementById('f-geo-query').value.trim();
     if(!q){ showToast('地名を入力してください。'); return; }
@@ -2120,6 +2200,7 @@ function openEntityModal(prefill){
       });
       await safeSet('p-overrides', overrides);
       DATA = buildData(); renderMarkers(); renderIndex();
+      clearDraft('newEntity', 'new');
       closeModal(); showToast('追加しました。');
       showEntity(newId);
     } else {
@@ -2130,6 +2211,7 @@ function openEntityModal(prefill){
         status: 'pending', createdAt: Date.now(), reviewNote: ''
       });
       await safeSet('p-proposals', proposals);
+      clearDraft('newEntity', 'new');
       closeModal(); showToast('提案を送信しました。審査担当者の確認後に反映されます。');
     }
   });
@@ -2175,6 +2257,14 @@ function openEditModal(targetId){
     </div>` : ''}`;
   overlay.classList.add('open');
   wireImageUpload('f-image-file','f-image-preview', d=>uploadedImageData=d);
+  const editEntityDraftFields = ['f-name','f-desc','f-image'].concat(e.type==='place' ? ['f-lat','f-lng','f-relevance'] : []);
+  const editEntityDraft = loadDraft('editEntity', targetId);
+  if(editEntityDraft){
+    insertDraftBanner('.modal-sub', editEntityDraft, ()=>{
+      applyDraftFields(editEntityDraft.data, editEntityDraftFields);
+    }, ()=>clearDraft('editEntity', targetId));
+  }
+  wireDraftAutosave('editEntity', targetId, editEntityDraftFields);
   if(e.type==='place'){
     document.getElementById('f-geo-search').addEventListener('click', async ()=>{
       const q = document.getElementById('f-geo-query').value.trim();
@@ -2214,6 +2304,7 @@ function openEditModal(targetId){
       overrides[targetId] = Object.assign(overrides[targetId] || {}, draft);
       await safeSet('p-overrides', overrides);
       DATA = buildData(); renderMarkers(); renderIndex();
+      clearDraft('editEntity', targetId);
       closeModal(); showToast('保存しました。');
       showEntity(targetId, {fromTrail:true});
     } else {
@@ -2224,6 +2315,7 @@ function openEditModal(targetId){
         status: 'pending', createdAt: Date.now(), reviewNote: ''
       });
       await safeSet('p-proposals', proposals);
+      clearDraft('editEntity', targetId);
       closeModal(); showToast('編集案を送信しました。審査担当者の確認後に反映されます。');
     }
   });
@@ -2633,12 +2725,29 @@ function openJournalModal(prefill){
   overlay.classList.add('open');
   wireImageUpload('j-image-file','j-image-preview', d=>uploadedImageData=d);
   let visibility = 'public';
+  const journalDraftId = prefill.entityId || 'new';
+  const journalDraftFields = ['j-name','j-date','j-comment','j-image'];
+  function setVisibility(v){
+    visibility = v;
+    modalBody.querySelectorAll('.vis-btn').forEach(b=>b.classList.toggle('active', b.dataset.vis===v));
+  }
   modalBody.querySelectorAll('.vis-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      visibility = btn.dataset.vis;
-      modalBody.querySelectorAll('.vis-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      setVisibility(btn.dataset.vis);
+      saveDraft('journal', journalDraftId, Object.assign(
+        journalDraftFields.reduce((acc,fid)=>{ const el=document.getElementById(fid); if(el) acc[fid]=el.value; return acc; }, {}),
+        {visibility}
+      ));
     });
   });
+  const journalDraft = loadDraft('journal', journalDraftId);
+  if(journalDraft){
+    insertDraftBanner('.modal-sub', journalDraft, ()=>{
+      applyDraftFields(journalDraft.data, journalDraftFields);
+      if(journalDraft.data.visibility) setVisibility(journalDraft.data.visibility);
+    }, ()=>clearDraft('journal', journalDraftId));
+  }
+  wireDraftAutosave('journal', journalDraftId, journalDraftFields, ()=>({visibility}));
   if(!prefill.entityId){
     document.getElementById('j-geo-search').addEventListener('click', async ()=>{
       const q = document.getElementById('j-geo-query').value.trim();
@@ -2687,6 +2796,7 @@ function openJournalModal(prefill){
       journal.push(record);
       await safeSet('p-journal', journal);
     }
+    clearDraft('journal', journalDraftId);
     closeModal(); showToast('保存しました。');
     renderJournalMarkers();
     if(prefill.entityId) showEntity(prefill.entityId, {fromTrail:true});

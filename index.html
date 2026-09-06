@@ -105,6 +105,14 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .locate-map-btn{width:42px;height:42px;border-radius:50%;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);flex:none;}
 .locate-map-btn:hover{border-color:var(--brass);}
 .locate-map-btn svg{width:20px;height:20px;}
+/* 現在地を継続追跡中（向きの表示つき）であることを示すオン状態 */
+.locate-map-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);}
+/* 現在地マーカー：中心の点＋向きが分かったときだけ表示する三角のコーン */
+.user-location-marker{width:26px;height:26px;}
+.user-location-marker .ulm-rotate{position:relative;width:100%;height:100%;transition:transform .25s ease-out;}
+.user-location-marker .ulm-dot{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#2f5d5a;border:2px solid #fff;box-shadow:0 0 0 4px rgba(47,93,90,.28);}
+.user-location-marker .ulm-cone{position:absolute;left:50%;top:0;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:20px solid rgba(47,93,90,.4);transform:translateX(-50%);display:none;}
+.user-location-marker.has-heading .ulm-cone{display:block;}
 .historic-toggle-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;flex:none;}
 .historic-toggle-btn:hover{border-color:var(--brass);}
 .historic-toggle-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);font-weight:600;}
@@ -3683,22 +3691,83 @@ document.getElementById('mapSearchBtn').addEventListener('click', async ()=>{
 });
 document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.map-search')) mapSearchResults.classList.remove('show'); });
 
-// ---------- 現在地から近い場所 ----------
+// ---------- 現在地から近い場所（＋歩いている向きの表示） ----------
+// ボタンを押すたびに「追跡開始／終了」をトグルする。開始中は位置情報を継続取得し
+// (watchPosition)、端末のコンパスセンサーが使えれば、現在地マーカーに向きを示す
+// 三角のコーンを重ねて回転させる。精度は端末・ブラウザ次第でまちまちなので、
+// コンパスが取れない場合は普通の点だけを表示する（無理に何かを取り繕わない）。
 const locateMapBtn = document.getElementById('locateMapBtn');
 const nearbyPanel = document.getElementById('nearbyPanel');
 let userLocationMarker = null;
+let geoWatchId = null;
+let headingHandlerAttached = false;
+let hasCenteredOnFirstFix = false;
 function formatDist(km){ return km<1 ? Math.round(km*1000)+'m' : km.toFixed(1)+'km'; }
-locateMapBtn.addEventListener('click', ()=>{
-  if(!navigator.geolocation){ showToast('お使いのブラウザは位置情報に対応していません。'); return; }
-  showToast('現在地を取得しています…');
-  navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, {enableHighAccuracy:false, timeout:10000, maximumAge:60000});
-});
-function onLocationSuccess(pos){
-  const userCoords = [pos.coords.latitude, pos.coords.longitude];
+
+// iOS Safari 13+は、向きセンサーの利用に明示的なユーザー許可（ボタン等の操作直後のみ
+// 呼び出し可能）が必要。それ以外の環境ではこの許可自体が存在しないので素通りする。
+async function ensureOrientationPermission(){
+  if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+    try{
+      const result = await DeviceOrientationEvent.requestPermission();
+      return result === 'granted';
+    }catch(e){ return false; }
+  }
+  return true;
+}
+
+// ブラウザ・端末によって向き（コンパス方位）の取り方がバラバラなので、分かる範囲で
+// 正規化する。どれも使えない場合はnullを返し、呼び出し側は「向きは表示しない」を選ぶ。
+function normalizeHeadingFromEvent(event){
+  if(typeof event.webkitCompassHeading === 'number' && !isNaN(event.webkitCompassHeading)){
+    return event.webkitCompassHeading; // iOS Safari独自：北を0とする真方位に近い値
+  }
+  if(event.absolute && typeof event.alpha === 'number'){
+    return (360 - event.alpha) % 360; // 一部のAndroid/Chrome。端末によっては精度が粗い
+  }
+  return null;
+}
+
+function handleOrientation(event){
+  const heading = normalizeHeadingFromEvent(event);
+  if(heading===null || !userLocationMarker) return;
+  const el = userLocationMarker.getElement();
+  if(!el) return;
+  const rotateEl = el.querySelector('.ulm-rotate');
+  if(rotateEl) rotateEl.style.transform = 'rotate(' + heading + 'deg)';
+  el.classList.add('has-heading');
+}
+
+function stopLocationTracking(silent){
+  if(geoWatchId !== null){ navigator.geolocation.clearWatch(geoWatchId); geoWatchId = null; }
+  if(headingHandlerAttached){
+    window.removeEventListener('deviceorientationabsolute', handleOrientation);
+    window.removeEventListener('deviceorientation', handleOrientation);
+    headingHandlerAttached = false;
+  }
+  if(userLocationMarker){ map.removeLayer(userLocationMarker); userLocationMarker = null; }
+  locateMapBtn.classList.remove('active');
+  locateMapBtn.setAttribute('title', '現在地から探す');
+  locateMapBtn.setAttribute('aria-label', '現在地から近い場所を探す');
+  hasCenteredOnFirstFix = false;
+  if(!silent) showToast('現在地の追跡を終了しました。');
+}
+
+function ensureUserLocationMarker(userCoords){
+  if(userLocationMarker){ userLocationMarker.setLatLng(userCoords); return; }
+  userLocationMarker = L.marker(userCoords, {
+    icon: L.divIcon({
+      className: 'user-location-marker',
+      html: '<div class="ulm-rotate"><div class="ulm-cone"></div><div class="ulm-dot"></div></div>',
+      iconSize: [26,26], iconAnchor: [13,13]
+    }),
+    zIndexOffset: 1000
+  }).addTo(map);
+  userLocationMarker.bindTooltip('現在地', {direction:'top', offset:[0,-14]});
+}
+
+function handleFirstFix(userCoords){
   panel.classList.remove('open'); timelineEl.classList.remove('open');
-  if(userLocationMarker) map.removeLayer(userLocationMarker);
-  userLocationMarker = L.circleMarker(userCoords, {radius:8, color:'#2f5d5a', fillColor:'#2f5d5a', fillOpacity:.85, weight:2}).addTo(map);
-  userLocationMarker.bindTooltip('現在地', {direction:'top', offset:[0,-8]});
   const nearby = Object.keys(DATA).filter(id=>DATA[id].type==='place' && DATA[id].coords)
     .map(id=>({id, dist: haversineKm(userCoords, DATA[id].coords)})).sort((a,b)=>a.dist-b.dist).slice(0,8);
   if(nearby.length===0 || nearby[0].dist>300){
@@ -3714,6 +3783,30 @@ function onLocationSuccess(pos){
   document.getElementById('nearbyPanelClose').addEventListener('click', ()=>nearbyPanel.classList.remove('show'));
   map.flyTo(userCoords, 11, {duration:0.8});
 }
+
+function onLocationUpdate(pos){
+  const userCoords = [pos.coords.latitude, pos.coords.longitude];
+  ensureUserLocationMarker(userCoords);
+  if(!hasCenteredOnFirstFix){
+    hasCenteredOnFirstFix = true;
+    handleFirstFix(userCoords);
+  }
+}
+
+locateMapBtn.addEventListener('click', async ()=>{
+  if(geoWatchId !== null){ stopLocationTracking(); return; }
+  if(!navigator.geolocation){ showToast('お使いのブラウザは位置情報に対応していません。'); return; }
+  showToast('現在地を取得しています…');
+  const orientationOk = await ensureOrientationPermission();
+  if(!orientationOk) showToast('向き（コンパス）の利用が許可されなかったため、位置のみ表示します。');
+  window.addEventListener('deviceorientationabsolute', handleOrientation);
+  window.addEventListener('deviceorientation', handleOrientation);
+  headingHandlerAttached = true;
+  locateMapBtn.classList.add('active');
+  locateMapBtn.setAttribute('title', '現在地の追跡を終了');
+  locateMapBtn.setAttribute('aria-label', '現在地の追跡を終了する');
+  geoWatchId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, {enableHighAccuracy:true, timeout:10000, maximumAge:5000});
+});
 function onLocationError(err){
   let msg = '現在地を取得できませんでした。';
   if(err.code===err.PERMISSION_DENIED) msg='位置情報の利用が許可されませんでした。';
@@ -3721,6 +3814,7 @@ function onLocationError(err){
   else if(err.code===err.TIMEOUT) msg='タイムアウトしました。';
   if(location.protocol==='file:') msg += '（file://で開いている場合、使えないことがあります）';
   showToast(msg);
+  stopLocationTracking(true);
 }
 document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.nearby-panel') && !ev.target.closest('.locate-map-btn')) nearbyPanel.classList.remove('show'); });
 

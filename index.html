@@ -1901,7 +1901,10 @@ const markerClusterGroup = L.markerClusterGroup({
   iconCreateFunction: function(cluster){
     const children = cluster.getAllChildMarkers();
     const count = children.length;
-    const firstName = (children[0] && children[0].entityName) || '';
+    // 221Bベーカー街が含まれているクラスタは、代表名として必ずそちらを優先する
+    // （先頭マーカー任せだと221Bが埋もれて見えなくなってしまうため）
+    const flagship = children.find(c=>c.entityId==='baker-street');
+    const firstName = (flagship || children[0])?.entityName || '';
     const labelText = count > 1 ? `${firstName} 他${count-1}件` : firstName;
     const hasSelected = !!selectedEntityId && children.some(c=>c.entityId===selectedEntityId);
     if(!cluster._holmesWired){
@@ -1967,8 +1970,11 @@ function renderMarkers(){
       }
       else m.bindTooltip(e.name,{direction:'top',offset:[0,-10]});
       markers[id]=m;
-      if(isSpecial) m.addTo(map);
-      else markerClusterGroup.addLayer(m);
+      // 221Bも他の地点と同じくクラスタに参加させる。広いズームでは他の地点と
+      // 合体して「◯件」の数字に含まれ、ズームインしてクラスタが自然に分かれた
+      // 瞬間だけ、上で設定した特別な見た目（大きいアイコン・常時ラベル）で
+      // 単独表示になる（合体中は下のiconCreateFunctionで名前を優先表示する）。
+      markerClusterGroup.addLayer(m);
     }
   });
 }

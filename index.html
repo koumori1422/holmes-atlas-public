@@ -126,17 +126,20 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .mt-ic{width:17px;height:17px;flex:none;}
 /* 作品で絞り込みのセレクトは、ネイティブの<select>の見た目を消し（appearance:none）、
    帯の中の他の項目と同じ「文字だけ」のセグメントに見せかける。矢印はCSSで別途重ねる。
-   選ばれている作品名が長い場合に帯全体を押し広げないよう、はみ出た分は…で省略する。 */
+   ★以前は作品名が長いときに…で省略していたが、「文字が欠けるのは避けたい」という
+   要望から、省略はやめて選ばれている作品名を必ず全部表示する。その分、帯の横幅が
+   画面より広くなることがあるが、帯の中身は横スクロールできるので隠れて見えなく
+   なることはない（欠ける＝一部だけ表示、ではなく、必要なら横にスクロールして
+   全文を読める、という形にしている）。 */
 .mt-select-wrap{position:relative;padding:0 26px 0 12px;}
 .mt-select{appearance:none;-webkit-appearance:none;background:none;border:none;color:inherit;font:inherit;
-  cursor:pointer;max-width:min(130px,32vw);overflow:hidden;text-overflow:ellipsis;}
+  cursor:pointer;white-space:nowrap;}
 .mt-select.active{color:var(--brass-light);font-weight:600;}
 .mt-select option{color:#000;background:#fff;}
 .mt-chevron{position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.75;}
 @media (max-width:480px){
   .mt-seg{padding:0 9px;gap:5px;}
   .mt-select-wrap{padding:0 22px 0 9px;}
-  .mt-select{max-width:96px;}
 }
 /* 一部の古い/小さめの機種（画面幅360px以下）ではここまでの調整でもまだ帯が
    収まりきらないことがあったため、さらに一段階詰める。それでも収まりきらない
@@ -145,7 +148,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
   .mt-seg{padding:0 4px;gap:3px;font-size:.72rem;}
   .mt-seg .mt-ic{width:15px;height:15px;}
   .mt-select-wrap{padding:0 14px 0 4px;}
-  .mt-select{max-width:40px;font-size:.72rem;}
+  .mt-select{font-size:.72rem;}
   .mt-chevron{right:4px;}
 }
 /* 現在地ボタン：帯（.map-controls-cluster）とは別の、帯のすぐ上に浮かぶ丸ボタン。

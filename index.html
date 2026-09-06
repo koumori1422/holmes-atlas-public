@@ -111,6 +111,16 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .leaflet-holmes-icon{background:var(--brass);border:2px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5);}
 .holmes-cluster-icon{background:transparent;}
 .cluster-icon-inner{width:34px;height:34px;border-radius:50%;background:var(--brass);border:2px solid var(--parchment);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Crimson Pro',serif;font-weight:700;font-size:.92rem;box-shadow:0 1px 4px rgba(0,0,0,.5);}
+/* 検索・索引で選んだ項目が、ズームアウトして他のピンと合体したクラスタの中に
+   隠れているとき、そのクラスタだけ分かるように輪をパルスさせる */
+.holmes-cluster-icon.has-selected .cluster-icon-inner{
+  box-shadow:0 0 0 3px var(--brass-light), 0 1px 4px rgba(0,0,0,.5);
+  animation: cluster-selected-pulse 1.6s ease-in-out infinite;
+}
+@keyframes cluster-selected-pulse{
+  0%,100%{ box-shadow:0 0 0 3px var(--brass-light), 0 1px 4px rgba(0,0,0,.5); }
+  50%{ box-shadow:0 0 0 7px rgba(201,165,98,.4), 0 1px 4px rgba(0,0,0,.5); }
+}
 .leaflet-holmes-icon svg{width:14px;height:14px;}
 .leaflet-holmes-icon-peripheral{background:var(--slate);opacity:.8;border:1.5px solid var(--parchment);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.4);}
 .leaflet-holmes-icon-peripheral svg{width:9px;height:9px;}
@@ -1856,8 +1866,11 @@ function renderMapLabels(){
   });
 }
 
+// 検索や索引で選んだ項目のID。地図上でその項目のピンが今どのクラスタの中に
+// 隠れているかをハイライトするために使う（選択が無ければnull）。
+let selectedEntityId = null;
 const markerClusterGroup = L.markerClusterGroup({
-  maxClusterRadius: 55,
+  maxClusterRadius: 45,
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
@@ -1866,6 +1879,7 @@ const markerClusterGroup = L.markerClusterGroup({
     const count = children.length;
     const firstName = (children[0] && children[0].entityName) || '';
     const labelText = count > 1 ? `${firstName} 他${count-1}件` : firstName;
+    const hasSelected = !!selectedEntityId && children.some(c=>c.entityId===selectedEntityId);
     if(!cluster._holmesWired){
       cluster.bindTooltip(labelText, {direction:'right', offset:[19,0], permanent:true, className:'place-label'});
       cluster.on('mouseover', ()=>{ cluster.getTooltip()?.getElement()?.classList.add('force-show'); });
@@ -1876,11 +1890,16 @@ const markerClusterGroup = L.markerClusterGroup({
     }
     return L.divIcon({
       html: `<div class="cluster-icon-inner">${count}</div>`,
-      className: 'holmes-cluster-icon',
+      className: 'holmes-cluster-icon' + (hasSelected ? ' has-selected' : ''),
       iconSize: L.point(34, 34)
     });
   }
 }).addTo(map);
+// 選択状態が変わったときに、クラスタのアイコンだけ即座に再計算させる
+// （ズームや追加・削除を伴わずに見た目だけ更新したいので refreshClusters を使う）
+function refreshSelectedClusterHighlight(){
+  try{ markerClusterGroup.refreshClusters(); }catch(e){ console.error(e); }
+}
 markerClusterGroup.on('spiderfied', (ev)=>{
   ev.cluster.getTooltip()?.getElement()?.classList.add('spiderfied-hide');
 });
@@ -1910,6 +1929,7 @@ function renderMarkers(){
       const icon = isSpecial ? makeSpecialIcon() : (e.relevance==='peripheral' ? makePeripheralIcon() : (e.relevance==='misc' ? makeMiscIcon() : makeIcon()));
       const m = L.marker(e.coords,{icon, zIndexOffset: isSpecial ? 2000 : 0});
       m.entityName = e.name;
+      m.entityId = id;
       m.on('click', ()=>showEntity(id));
       if(isSpecial){
         m.bindTooltip(e.name,{direction:'right',offset:[12,0],permanent:true,className:'place-label-special'});
@@ -2106,6 +2126,8 @@ function showEntity(id, opts={}){
   document.getElementById('myBook').classList.remove('open');
   if(!opts.fromTrail){ trail = trail.filter(t=>t!==id); trail.push(id); if(trail.length>6) trail.shift(); }
   document.querySelectorAll('.index-item').forEach(b=>b.classList.toggle('active', b.dataset.id===id));
+  selectedEntityId = (e.type==='place' && e.coords) ? id : null;
+  refreshSelectedClusterHighlight();
   if(e.type==='place' && e.coords){
     try{
       const m0 = markers[id];
@@ -2233,6 +2255,8 @@ function showEntity(id, opts={}){
 }
 document.getElementById('panelClose').addEventListener('click', ()=>{
   panel.classList.remove('open');
+  selectedEntityId = null;
+  refreshSelectedClusterHighlight();
   if(lastShownPlace){
     map.flyTo(lastShownPlace.coords, lastShownPlace.zoom, {duration:0.6});
     lastShownPlace = null;
@@ -2252,6 +2276,8 @@ function goToMap(id){
   panel.classList.remove('open');
   document.getElementById('timeline').classList.remove('open');
   document.getElementById('myBook').classList.remove('open');
+  selectedEntityId = id;
+  refreshSelectedClusterHighlight();
   const m = markers[id];
   if(m && markerClusterGroup.hasLayer(m)){
     markerClusterGroup.zoomToShowLayer(m, ()=>{ m.openTooltip(); });

@@ -101,17 +101,17 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .alias-register-row input{flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:3px;font-size:.8rem;}
 .alias-register-row button{background:var(--brass);border:none;color:#fff;padding:0 12px;border-radius:3px;cursor:pointer;font-size:.8rem;white-space:nowrap;}
 .search-popup-btn{background:var(--brass);border:none;color:#fff;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:.8rem;margin-top:4px;}
-/* 古地図・正典フィルタ・作品絞り込み・221Bへを、1本の「真鍮パネル」
-   ツールバーにまとめている。以前はそれぞれ独立した丸皿ボタンで、文言の長さが
-   変わると隣とぶつかったり見た目がバラバラだったりしたため、仕切り線（.mt-div）で
+/* 古地図・正典フィルタ・作品絞り込みを、1本の「真鍮パネル」ツールバーに
+   まとめている。以前はそれぞれ独立した丸皿ボタンで、文言の長さが変わると
+   隣とぶつかったり見た目がバラバラだったりしたため、仕切り線（.mt-div）で
    区切った1本の帯にし、状態のオン/オフは背景の塗りつぶしではなく文字色（金色）で
-   示す形に統一した。221Bへだけは特別な項目への近道なので、バーガンディ色の
-   小さなピルとして帯の右端に残している。
-   ★以前は現在地ボタンもこの帯の中に入れていたが、スマホ幅だと全部のラベル文字を
-   出したままでは帯が画面幅に収まりきらず、右端の221Bへボタンが画面外に押し出されて
-   見えなくなっていた。「正典のみ」「古地図」の文字ラベルは残したいという要望から、
-   現在地ボタンは帯から出して帯の真上に独立した丸ボタン（.map-locate-btn）にし、
-   帯の幅そのものを縮めることで対応している。
+   示す形に統一した。
+   ★以前は現在地ボタン・221Bへボタンもこの帯の中に入れていたが、スマホ幅だと
+   全部のラベル文字を出したままでは帯が画面幅に収まりきらず、右端のボタンが
+   画面外に押し出されて見えなくなっていた。「正典のみ」「古地図」の文字ラベルは
+   残したいという要望から、現在地ボタン・221Bへボタンは帯から出して、帯の真上に
+   積み重ねた独立ボタン（.map-locate-btn / .map-door-btn）にし、帯の幅そのものを
+   縮めることで対応している。
    それでも収まりきらない極端に狭い画面向けの保険として、帯の中身だけ横スクロールもできる。 */
 .map-controls-cluster{position:absolute;bottom:16px;right:16px;z-index:500;display:flex;align-items:stretch;
   max-width:calc(100vw - 24px);height:44px;background:linear-gradient(180deg,#2a3547,var(--ink-2));
@@ -137,18 +137,16 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
   .mt-seg{padding:0 9px;gap:5px;}
   .mt-select-wrap{padding:0 22px 0 9px;}
   .mt-select{max-width:96px;}
-  .mt-door{margin:5px 3px 5px 4px;padding:0 9px;}
 }
 /* 一部の古い/小さめの機種（画面幅360px以下）ではここまでの調整でもまだ帯が
    収まりきらないことがあったため、さらに一段階詰める。それでも収まりきらない
    最小限のケース向けに、帯の中身だけ横スクロールできる保険は残してある。 */
 @media (max-width:360px){
   .mt-seg{padding:0 4px;gap:3px;font-size:.72rem;}
-  .mt-seg .mt-ic,.mt-door .mt-ic{width:15px;height:15px;}
+  .mt-seg .mt-ic{width:15px;height:15px;}
   .mt-select-wrap{padding:0 14px 0 4px;}
   .mt-select{max-width:40px;font-size:.72rem;}
   .mt-chevron{right:4px;}
-  .mt-door{margin:5px 1px 5px 1px;padding:0 5px;font-size:.72rem;}
 }
 /* 現在地ボタン：帯（.map-controls-cluster）とは別の、帯のすぐ上に浮かぶ丸ボタン。
    帯と同じ真鍮パネル調の配色にして「同じ計器盤の仲間」だと分かるようにしつつ、
@@ -186,16 +184,17 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .mt-select:focus{outline:none;}
 .mt-seg:focus-visible,
 .mt-select:focus-visible{outline:2px solid var(--fog);outline-offset:-2px;}
-/* 221Bへの直行ボタン。地図上の特別マーカー（.leaflet-holmes-special-icon）と
-   同じバーガンディ×金の配色にして、ここだけは特別な項目への近道だと分かるように、
-   帯の他のセグメントとは切り離した小さなピルとして右端に残している。 */
-.mt-door{display:flex;align-items:center;gap:6px;flex:none;margin:5px 3px 5px 6px;padding:0 12px;
-  background:var(--burgundy);border:1.5px solid var(--brass-light);border-radius:17px;color:#fff;
-  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.78rem;font-weight:700;white-space:nowrap;}
-.mt-door:hover{filter:brightness(1.12);}
-.mt-door:focus{outline:none;}
-.mt-door:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
-.nearby-panel{position:absolute;bottom:118px;right:16px;z-index:500;width:min(300px,80%);background:var(--parchment);border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-height:320px;overflow-y:auto;display:none;}
+/* 221Bへの直行ボタン。帯からは独立させ、現在地ボタンのさらに上に積み重ねた
+   ピルにしている。地図上の特別マーカー（.leaflet-holmes-special-icon）と
+   同じバーガンディ×金の配色にして、特別な項目への近道だと分かるようにしている。 */
+.map-door-btn{position:absolute;bottom:120px;right:16px;z-index:500;display:flex;align-items:center;
+  gap:6px;height:40px;padding:0 14px;background:var(--burgundy);border:1.5px solid var(--brass-light);
+  border-radius:20px;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);
+  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.82rem;font-weight:700;white-space:nowrap;}
+.map-door-btn:hover{filter:brightness(1.12);}
+.map-door-btn:focus{outline:none;}
+.map-door-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
+.nearby-panel{position:absolute;bottom:172px;right:16px;z-index:500;width:min(300px,80%);background:var(--parchment);border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-height:320px;overflow-y:auto;display:none;}
 .nearby-panel.show{display:block;}
 .nearby-panel-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
 .nearby-panel-close{background:none;border:none;cursor:pointer;font-size:1rem;color:var(--charcoal);opacity:.6;}
@@ -473,15 +472,17 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
         </select>
         <svg class="mt-ic mt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </span>
-      <button class="mt-door" id="bakerStreetBtn" title="221Bベーカー街のページへ一発で移動">
-        <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="3" width="12" height="18" rx="1"/><circle cx="14.5" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
-        <span>221B</span>
-      </button>
     </div>
-    <!-- 現在地ボタンは帯から独立させ、丸いFAB（帯の真上）にしている。こうすることで
-         「正典のみ」「古地図」の文字ラベルをスマホでも消さずに残せる。 -->
+    <!-- 現在地ボタン・221Bへボタンは帯から独立させ、帯の真上に積み重ねた
+         浮きボタンにしている。こうすることで「正典のみ」「古地図」の文字ラベルを
+         スマホでも消さずに残せる。221Bへは特別な項目への近道なので、これまで通り
+         バーガンディ色のピルのまま、現在地ボタンのさらに上に置いている。 -->
     <button class="map-locate-btn" id="locateMapBtn" title="現在地から探す" aria-label="現在地から近い場所を探す">
       <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    </button>
+    <button class="map-door-btn" id="bakerStreetBtn" title="221Bベーカー街のページへ一発で移動">
+      <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="3" width="12" height="18" rx="1"/><circle cx="14.5" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+      <span>221B</span>
     </button>
     <div class="nearby-panel" id="nearbyPanel"></div>
     <div class="panel" id="panel">

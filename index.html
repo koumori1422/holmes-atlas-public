@@ -388,6 +388,12 @@ async function loadReviewers(){
 function isReviewer(){
   return !!(currentUser && reviewerEmails.includes(currentUser.email));
 }
+// 審査担当者かどうかで「その場反映」か「審査待ち」かの説明文を出し分ける。
+// 新規追加・編集・写真追加の各モーダルで共通して使う（審査担当者以外にだけ「審査なし」と
+// 誤表示してしまうバグが以前あったので、文言を1箇所にまとめて再発を防ぐ）。
+function reviewModalSub(directText){
+  return isReviewer() ? directText : '送信すると審査担当者の確認後に反映されます。';
+}
 function renderAuthArea(){
   const el = document.getElementById('authArea');
   if(currentUser){
@@ -1206,6 +1212,23 @@ function rpcObjDelete(key, itemId){ return callRpc('atlas_obj_delete', { p_key:k
 function rpcObjNestedArrayAddUnique(key, itemId, field, value){ return callRpc('atlas_obj_nested_array_add_unique', { p_key:key, p_item_id:itemId, p_field:field, p_value:value }); }
 function rpcObjNestedArrayAppend(key, itemId, field, item){ return callRpc('atlas_obj_nested_array_append', { p_key:key, p_item_id:itemId, p_field:field, p_item:item }); }
 function rpcObjNestedArrayRemoveById(key, itemId, field, childId){ return callRpc('atlas_obj_nested_array_remove_by_id', { p_key:key, p_item_id:itemId, p_field:field, p_child_id:childId }); }
+
+// 新規追加・編集・写真追加の各モーダルで共通の「提案（proposal）」レコードを組み立てて送信する。
+// 審査担当者以外の投稿はここを通ってp-proposalsに積まれ、審査ダッシュボードでの承認を待つ。
+function buildProposalRecord(kind, targetType, targetId, draft){
+  return {
+    id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    kind, targetType, targetId, draft,
+    authorId: currentUser.id, authorName: getDisplayName(currentUser),
+    status: 'pending', createdAt: Date.now(), reviewNote: ''
+  };
+}
+async function submitProposal(kind, targetType, targetId, draft){
+  const record = buildProposalRecord(kind, targetType, targetId, draft);
+  proposals.push(record);
+  await rpcArrAppend('p-proposals', record);
+  return record;
+}
 
 async function loadAll(){
   const [ov, add, notes, favs, jour, aliases, props, reps] = await Promise.all([
@@ -2146,12 +2169,63 @@ function relatedChecklist(excludeId, preselected=[]){
   return ids.map(id=>`<label><input type="checkbox" value="${id}" ${preselected.includes(id)?'checked':''}> <span class="dot dot-${entityClass(DATA[id])}"></span>${DATA[id].name}</label>`).join('');
 }
 
+// 新規追加・編集モーダルで共通の「メイン画像＋作者・ライセンス・出典URL」欄。
+// eを渡すと編集モーダル用（既存値をプリフィルし、差し替え時の注意文を追加する）、
+// nullなら新規追加モーダル用（すべて空欄）になる。
+function renderImageField(e){
+  const urlVal = e && e.image && !e.image.startsWith('data:') ? escapeAttr(e.image) : '';
+  const previewHtml = e && e.image ? `<img src="${escapeAttr(e.image)}" alt="">` : '';
+  const replaceHint = e ? '画像を差し替えるときは、クレジットも合わせて更新してください。' : '';
+  return `<div class="field"><label>画像（任意）</label>
+      <input type="file" class="file-input" id="f-image-file" accept="image/*">
+      <input type="text" id="f-image" value="${urlVal}" placeholder="https://..." style="margin-top:6px;">
+      <div class="image-preview" id="f-image-preview">${previewHtml}</div>
+      <div class="hint">Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。${replaceHint}</div>
+      <input type="text" id="f-image-credit" value="${e && e.imageCredit ? escapeAttr(e.imageCredit) : ''}" placeholder="作者・提供元（任意）" style="margin-top:6px;">
+      <input type="text" id="f-image-license" value="${e && e.imageLicense ? escapeAttr(e.imageLicense) : ''}" placeholder="ライセンス（任意）例：CC BY-SA 4.0" style="margin-top:6px;">
+      <input type="text" id="f-image-source" value="${e && e.imageSourceUrl ? escapeAttr(e.imageSourceUrl) : ''}" placeholder="出典URL（任意）" style="margin-top:6px;">
+    </div>`;
+}
+// renderImageField()のフィールドから入力値を読み出す。uploadedImageDataがあれば
+// （ファイルをアップロード済みなら）URLテキスト欄より優先する。
+function readImageFieldValues(uploadedImageData){
+  return {
+    image: uploadedImageData || document.getElementById('f-image').value.trim() || null,
+    imageCredit: document.getElementById('f-image-credit').value.trim() || null,
+    imageLicense: document.getElementById('f-image-license').value.trim() || null,
+    imageSourceUrl: document.getElementById('f-image-source').value.trim() || null,
+  };
+}
+// 新規追加・編集モーダルで共通の「場所を検索」ボタンの挙動。
+// requireQueryをtrueにすると、未入力での検索時にトースト表示する（新規追加モーダル用）。
+function wireGeoSearchButton(requireQuery){
+  const btn = document.getElementById('f-geo-search');
+  if(!btn) return;
+  btn.addEventListener('click', async ()=>{
+    const q = document.getElementById('f-geo-query').value.trim();
+    if(!q){ if(requireQuery) showToast('地名を入力してください。'); return; }
+    const rEl = document.getElementById('f-geo-results');
+    rEl.innerHTML = '<div class="hint">検索中…</div>';
+    const results = await geocodeSearch(q);
+    if(!results || results.length===0){ rEl.innerHTML='<div class="hint">見つかりませんでした。</div>'; return; }
+    rEl.innerHTML = results.map(r=>`<button type="button" class="geo-result-item" data-lat="${r.lat}" data-lon="${r.lon}">${escapeHtml(r.display_name)}</button>`).join('');
+    rEl.querySelectorAll('.geo-result-item').forEach(resultBtn=>{
+      resultBtn.addEventListener('click', ()=>{
+        rEl.querySelectorAll('.geo-result-item').forEach(b=>b.classList.remove('selected'));
+        resultBtn.classList.add('selected');
+        document.getElementById('f-lat').value = parseFloat(resultBtn.dataset.lat).toFixed(4);
+        document.getElementById('f-lng').value = parseFloat(resultBtn.dataset.lon).toFixed(4);
+      });
+    });
+  });
+}
+
 function openEntityModal(prefill){
   prefill = (prefill && typeof prefill.lat==='number') ? prefill : null;
   let uploadedImageData = null;
   modalBody.innerHTML = `
     <h3>新しい項目を追加</h3>
-    <div class="modal-sub">${isReviewer() ? 'その場で即反映されます（審査なし）。' : '送信すると審査担当者の確認後に反映されます。'}</div>
+    <div class="modal-sub">${reviewModalSub('その場で即反映されます（審査なし）。')}</div>
     <div class="field"><label>種別</label><select id="f-type">${NEW_ENTITY_TYPES.map(t=>`<option value="${t}">${TYPE_LABEL[t]}</option>`).join('')}</select></div>
     <div class="field"><label>名称</label><input type="text" id="f-name" value="${prefill?escapeAttr(prefill.name):''}"></div>
     <div class="field" id="f-location-field" style="display:none;">
@@ -2171,15 +2245,7 @@ function openEntityModal(prefill){
       <select id="f-canon"><option value="true">正典（コナン・ドイルの原作）</option><option value="false">正典外（パスティーシュ・映像化・翻案など）</option></select>
     </div>
     <div class="field"><label>説明文</label><textarea id="f-desc"></textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります（表示を変えたい場合は <code>[[holmes|彼]]</code> のように｜で区切って指定）。</div></div>
-    <div class="field"><label>画像（任意）</label>
-      <input type="file" class="file-input" id="f-image-file" accept="image/*">
-      <input type="text" id="f-image" placeholder="https://..." style="margin-top:6px;">
-      <div class="image-preview" id="f-image-preview"></div>
-      <div class="hint">Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。</div>
-      <input type="text" id="f-image-credit" placeholder="作者・提供元（任意）" style="margin-top:6px;">
-      <input type="text" id="f-image-license" placeholder="ライセンス（任意）例：CC BY-SA 4.0" style="margin-top:6px;">
-      <input type="text" id="f-image-source" placeholder="出典URL（任意）" style="margin-top:6px;">
-    </div>
+    ${renderImageField(null)}
     <div class="field"><label>関連付ける項目（任意）</label><div class="checklist">${relatedChecklist(null)}</div></div>
     <div class="modal-actions"><button class="modal-cancel" id="f-cancel">キャンセル</button><button class="modal-submit" id="f-submit">追加する</button></div>`;
   overlay.classList.add('open');
@@ -2204,23 +2270,7 @@ function openEntityModal(prefill){
   }
   wireDraftAutosave('newEntity', 'new', newEntityDraftFields);
   typeSelect.addEventListener('change', ()=>saveDraft('newEntity', 'new', newEntityDraftFields.reduce((acc,fid)=>{ const el=document.getElementById(fid); if(el) acc[fid]=el.value; return acc; }, {})));
-  document.getElementById('f-geo-search').addEventListener('click', async ()=>{
-    const q = document.getElementById('f-geo-query').value.trim();
-    if(!q){ showToast('地名を入力してください。'); return; }
-    const rEl = document.getElementById('f-geo-results');
-    rEl.innerHTML = '<div class="hint">検索中…</div>';
-    const results = await geocodeSearch(q);
-    if(!results || results.length===0){ rEl.innerHTML='<div class="hint">見つかりませんでした。</div>'; return; }
-    rEl.innerHTML = results.map(r=>`<button type="button" class="geo-result-item" data-lat="${r.lat}" data-lon="${r.lon}">${escapeHtml(r.display_name)}</button>`).join('');
-    rEl.querySelectorAll('.geo-result-item').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        rEl.querySelectorAll('.geo-result-item').forEach(b=>b.classList.remove('selected'));
-        btn.classList.add('selected');
-        document.getElementById('f-lat').value = parseFloat(btn.dataset.lat).toFixed(4);
-        document.getElementById('f-lng').value = parseFloat(btn.dataset.lon).toFixed(4);
-      });
-    });
-  });
+  wireGeoSearchButton(true);
   document.getElementById('f-cancel').addEventListener('click', closeModal);
   document.getElementById('f-submit').addEventListener('click', async ()=>{
     if(!currentUser){ showToast('投稿にはログインが必要です。'); return; }
@@ -2237,11 +2287,8 @@ function openEntityModal(prefill){
     }
     const related = Array.from(modalBody.querySelectorAll('.checklist input:checked')).map(cb=>cb.value);
     const canon = type==='work' ? (document.getElementById('f-canon').value === 'true') : undefined;
-    const imageUrl = uploadedImageData || document.getElementById('f-image').value.trim() || null;
-    const imageCredit = document.getElementById('f-image-credit').value.trim() || null;
-    const imageLicense = document.getElementById('f-image-license').value.trim() || null;
-    const imageSourceUrl = document.getElementById('f-image-source').value.trim() || null;
-    const draft = {type, name, desc, image: imageUrl, imageCredit, imageLicense, imageSourceUrl, coords, canon, relevance, related};
+    const imgVals = readImageFieldValues(uploadedImageData);
+    const draft = {type, name, desc, ...imgVals, coords, canon, relevance, related};
     if(isReviewer()){
       const newId = 'u-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
       additions[newId] = draft;
@@ -2258,14 +2305,7 @@ function openEntityModal(prefill){
       closeModal(); showToast('追加しました。');
       showEntity(newId);
     } else {
-      const newProposal = {
-        id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
-        kind: 'new', targetType: type, targetId: null, draft,
-        authorId: currentUser.id, authorName: getDisplayName(currentUser),
-        status: 'pending', createdAt: Date.now(), reviewNote: ''
-      };
-      proposals.push(newProposal);
-      await rpcArrAppend('p-proposals', newProposal);
+      await submitProposal('new', type, null, draft);
       clearDraft('newEntity', 'new');
       closeModal(); showToast('提案を送信しました。審査担当者の確認後に反映されます。');
     }
@@ -2281,18 +2321,10 @@ function openEditModal(targetId){
   let uploadedImageData = null;
   modalBody.innerHTML = `
     <h3>編集する — ${e.name}</h3>
-    <div class="modal-sub">${isReviewer() ? '保存するとその場で反映されます。' : '送信すると審査担当者の確認後に反映されます。'}</div>
+    <div class="modal-sub">${reviewModalSub('保存するとその場で反映されます。')}</div>
     <div class="field"><label>名称</label><input type="text" id="f-name" value="${escapeAttr(e.name)}"></div>
     <div class="field"><label>新しい説明文</label><textarea id="f-desc">${escapeHtml(e.desc)}</textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります。</div></div>
-    <div class="field"><label>画像（任意）</label>
-      <input type="file" class="file-input" id="f-image-file" accept="image/*">
-      <input type="text" id="f-image" value="${e.image && !e.image.startsWith('data:') ? escapeAttr(e.image):''}" placeholder="https://...">
-      <div class="image-preview" id="f-image-preview">${e.image?`<img src="${escapeAttr(e.image)}" alt="">`:''}</div>
-      <div class="hint">Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。画像を差し替えるときは、クレジットも合わせて更新してください。</div>
-      <input type="text" id="f-image-credit" value="${e.imageCredit?escapeAttr(e.imageCredit):''}" placeholder="作者・提供元（任意）" style="margin-top:6px;">
-      <input type="text" id="f-image-license" value="${e.imageLicense?escapeAttr(e.imageLicense):''}" placeholder="ライセンス（任意）例：CC BY-SA 4.0" style="margin-top:6px;">
-      <input type="text" id="f-image-source" value="${e.imageSourceUrl?escapeAttr(e.imageSourceUrl):''}" placeholder="出典URL（任意）" style="margin-top:6px;">
-    </div>
+    ${renderImageField(e)}
     ${e.type==='place' ? `
     <div class="field">
       <label>座標を修正する（任意）</label>
@@ -2325,23 +2357,7 @@ function openEditModal(targetId){
   }
   wireDraftAutosave('editEntity', targetId, editEntityDraftFields);
   if(e.type==='place'){
-    document.getElementById('f-geo-search').addEventListener('click', async ()=>{
-      const q = document.getElementById('f-geo-query').value.trim();
-      if(!q) return;
-      const rEl = document.getElementById('f-geo-results');
-      rEl.innerHTML = '<div class="hint">検索中…</div>';
-      const results = await geocodeSearch(q);
-      if(!results || results.length===0){ rEl.innerHTML='<div class="hint">見つかりませんでした。</div>'; return; }
-      rEl.innerHTML = results.map(r=>`<button type="button" class="geo-result-item" data-lat="${r.lat}" data-lon="${r.lon}">${escapeHtml(r.display_name)}</button>`).join('');
-      rEl.querySelectorAll('.geo-result-item').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          rEl.querySelectorAll('.geo-result-item').forEach(b=>b.classList.remove('selected'));
-          btn.classList.add('selected');
-          document.getElementById('f-lat').value = parseFloat(btn.dataset.lat).toFixed(4);
-          document.getElementById('f-lng').value = parseFloat(btn.dataset.lon).toFixed(4);
-        });
-      });
-    });
+    wireGeoSearchButton(false);
   }
   document.getElementById('f-cancel').addEventListener('click', closeModal);
   document.getElementById('f-delete-open')?.addEventListener('click', ()=>openDeleteConfirmModal(targetId, e.name));
@@ -2350,15 +2366,12 @@ function openEditModal(targetId){
     const name = document.getElementById('f-name').value.trim();
     const desc = document.getElementById('f-desc').value.trim();
     if(!name || !desc){ showToast('名称と説明文は必須です。'); return; }
-    const img = uploadedImageData || document.getElementById('f-image').value.trim();
-    const imageCredit = document.getElementById('f-image-credit').value.trim();
-    const imageLicense = document.getElementById('f-image-license').value.trim();
-    const imageSourceUrl = document.getElementById('f-image-source').value.trim();
+    const imgVals = readImageFieldValues(uploadedImageData);
     const draft = { name, desc };
-    if(img) draft.image = img;
-    if(imageCredit) draft.imageCredit = imageCredit;
-    if(imageLicense) draft.imageLicense = imageLicense;
-    if(imageSourceUrl) draft.imageSourceUrl = imageSourceUrl;
+    if(imgVals.image) draft.image = imgVals.image;
+    if(imgVals.imageCredit) draft.imageCredit = imgVals.imageCredit;
+    if(imgVals.imageLicense) draft.imageLicense = imgVals.imageLicense;
+    if(imgVals.imageSourceUrl) draft.imageSourceUrl = imgVals.imageSourceUrl;
     if(e.type==='place'){
       const lat = parseFloat(document.getElementById('f-lat').value), lng = parseFloat(document.getElementById('f-lng').value);
       if(!isNaN(lat) && !isNaN(lng)) draft.coords = [lat,lng];
@@ -2373,14 +2386,7 @@ function openEditModal(targetId){
       closeModal(); showToast('保存しました。');
       showEntity(targetId, {fromTrail:true});
     } else {
-      const newProposal = {
-        id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
-        kind: 'edit', targetType: e.type, targetId, draft,
-        authorId: currentUser.id, authorName: getDisplayName(currentUser),
-        status: 'pending', createdAt: Date.now(), reviewNote: ''
-      };
-      proposals.push(newProposal);
-      await rpcArrAppend('p-proposals', newProposal);
+      await submitProposal('edit', e.type, targetId, draft);
       clearDraft('editEntity', targetId);
       closeModal(); showToast('編集案を送信しました。審査担当者の確認後に反映されます。');
     }
@@ -2671,7 +2677,7 @@ function openPhotoModal(entityId){
   let uploadedImageData = null;
   modalBody.innerHTML = `
     <h3>写真を追加 — ${e.name}</h3>
-    <div class="modal-sub">その場でギャラリーに追加されます。Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。</div>
+    <div class="modal-sub">${reviewModalSub('その場でギャラリーに追加されます。')}Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。</div>
     <div class="field"><label>画像</label>
       <input type="file" class="file-input" id="ph-image-file" accept="image/*">
       <div class="hint">アップロードすると自動で縮小・圧縮されます。もしくは外部URLを指定してください。</div>
@@ -2707,14 +2713,7 @@ function openPhotoModal(entityId){
       closeModal(); showToast('写真を追加しました。');
       showEntity(entityId, {fromTrail:true});
     } else {
-      const newProposal = {
-        id: 'prop-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
-        kind: 'photo', targetType: e.type, targetId: entityId, draft: photo,
-        authorId: currentUser.id, authorName: getDisplayName(currentUser),
-        status: 'pending', createdAt: Date.now(), reviewNote: ''
-      };
-      proposals.push(newProposal);
-      await rpcArrAppend('p-proposals', newProposal);
+      await submitProposal('photo', e.type, entityId, photo);
       closeModal(); showToast('写真の提案を送信しました。審査担当者の確認後に反映されます。');
     }
   });

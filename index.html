@@ -105,7 +105,14 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .locate-map-btn svg{width:20px;height:20px;}
 .historic-toggle-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;flex:none;}
 .historic-toggle-btn:hover{border-color:var(--brass);}
-.historic-toggle-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);}
+.historic-toggle-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);font-weight:600;}
+/* タップ後に残るブラウザ標準のフォーカスリングが、金色の「オン」表示と紛らわしかった
+   ため、マウス・タッチでのクリック後は輪を出さず、キーボード操作（Tabキー）のときだけ
+   オン状態とは違う色味の細い輪を出すようにする */
+.historic-toggle-btn:focus,
+.locate-map-btn:focus{outline:none;}
+.historic-toggle-btn:focus-visible,
+.locate-map-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
 .nearby-panel{position:absolute;bottom:66px;right:16px;z-index:500;width:min(300px,80%);background:var(--parchment);border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-height:320px;overflow-y:auto;display:none;}
 .nearby-panel.show{display:block;}
 .nearby-panel-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
@@ -1788,24 +1795,26 @@ historicToggleBtn.addEventListener('click', ()=>{
     return;
   }
   showingHistoric = !showingHistoric;
+  // ボタンの文言は「切り替え先」で毎回変えるのではなく常に「🗺️ 古地図」のまま固定し、
+  // オンの間だけ先頭にチェックマークを付けて塗りつぶす（オン/オフが一目で分かるように、
+  // 隣の「正典登場地のみ」ボタンと共通のパターンにする）
+  historicToggleBtn.classList.toggle('active', showingHistoric);
+  historicToggleBtn.textContent = (showingHistoric ? '✓ ' : '') + '🗺️ 古地図';
   if(showingHistoric){
     map.removeLayer(tileLayer);
     getHistoricLayer().addTo(map);
-    historicToggleBtn.classList.add('active');
-    historicToggleBtn.textContent = '🗺️ 現在の地図';
   } else {
     map.removeLayer(getHistoricLayer());
     tileLayer.addTo(map);
-    historicToggleBtn.classList.remove('active');
-    historicToggleBtn.textContent = '🗺️ 古地図';
   }
 });
 
 const coreOnlyBtn = document.getElementById('coreOnlyBtn');
 coreOnlyBtn.addEventListener('click', ()=>{
   coreOnlyFilter = !coreOnlyFilter;
+  // こちらも文言を変えず、オンの間だけチェックマーク＋塗りつぶしで表す
   coreOnlyBtn.classList.toggle('active', coreOnlyFilter);
-  coreOnlyBtn.textContent = coreOnlyFilter ? '全て表示' : '正典登場地のみ';
+  coreOnlyBtn.textContent = (coreOnlyFilter ? '✓ ' : '') + '正典登場地のみ';
   renderMarkers();
   renderIndex();
 });

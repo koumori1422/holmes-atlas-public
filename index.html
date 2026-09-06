@@ -275,6 +275,12 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .lightbox-close{position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;line-height:1;}
 .photo-block img,.entity-img,.journal-card img{cursor:zoom-in;}
 .toast.show{opacity:1;}
+.map-latlng-popup .leaflet-popup-content-wrapper{background:var(--ink-2);color:var(--fog);border:1px solid var(--brass);border-radius:4px;}
+.map-latlng-popup .leaflet-popup-tip{background:var(--ink-2);border:1px solid var(--brass);}
+.map-latlng-popup .leaflet-popup-content{margin:9px 12px;}
+.map-latlng-popup-coords{font-size:.72rem;color:var(--slate);margin-bottom:4px;}
+.map-latlng-popup-body a{color:var(--brass-light);font-size:.85rem;text-decoration:none;font-weight:600;}
+.map-latlng-popup-body a:hover{text-decoration:underline;}
 
 @media (max-width:760px){
   .app{grid-template-columns:1fr;grid-template-rows:56px 1fr;}
@@ -1886,6 +1892,22 @@ function renderMarkers(){
 map.on('zoomend', ()=>{
   const el = map.getContainer();
   if(map.getZoom()<14) el.classList.add('hide-place-labels'); else el.classList.remove('hide-place-labels');
+});
+// 登録済みの地点（ピン）以外の、地図上の任意の場所でもGoogleマップを開けるように。
+// ピンやクラスタ自体のクリックはLeaflet側で自動的にこちらへは伝わらないので、
+// 何も無い場所をタップ/クリックしたときだけポップアップが出る。
+map.on('click', (ev)=>{
+  const { lat, lng } = ev.latlng;
+  const gUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  L.popup({closeButton:true, className:'map-latlng-popup'})
+    .setLatLng(ev.latlng)
+    .setContent(
+      `<div class="map-latlng-popup-body">
+        <div class="map-latlng-popup-coords">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+        <a href="${gUrl}" target="_blank" rel="noopener noreferrer">Googleマップで開く</a>
+      </div>`
+    )
+    .openOn(map);
 });
 if(map.getZoom()<14) map.getContainer().classList.add('hide-place-labels');
 

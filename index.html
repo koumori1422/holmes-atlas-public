@@ -107,11 +107,17 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .locate-map-btn svg{width:20px;height:20px;}
 /* 現在地を継続追跡中（向きの表示つき）であることを示すオン状態 */
 .locate-map-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);}
-/* 現在地マーカー：中心の点＋向きが分かったときだけ表示する三角のコーン */
-.user-location-marker{width:26px;height:26px;}
-.user-location-marker .ulm-rotate{position:relative;width:100%;height:100%;transition:transform .25s ease-out;}
-.user-location-marker .ulm-dot{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#2f5d5a;border:2px solid #fff;box-shadow:0 0 0 4px rgba(47,93,90,.28);}
-.user-location-marker .ulm-cone{position:absolute;left:50%;top:0;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:20px solid rgba(47,93,90,.4);transform:translateX(-50%);display:none;}
+/* 現在地マーカー：中心の点＋向きが分かったときだけ表示する三角のコーン。
+   地図の地色（セピー掛かったベージュ〜緑系）に埋もれて見えにくかったため、
+   コーンは彩度の高い金茶色（--brass）に変更し、白い縁取り（halo）を背後に
+   重ねることでどんな地図の色の上でも輪郭がはっきり見えるようにしている。
+   サイズ・不透明度も大きめに調整済み。 */
+.user-location-marker{width:34px;height:34px;}
+.user-location-marker .ulm-rotate{position:relative;width:100%;height:100%;transition:transform .2s linear;filter:drop-shadow(0 1px 3px rgba(0,0,0,.55));}
+.user-location-marker .ulm-dot{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:#2f5d5a;border:2px solid #fff;box-shadow:0 0 0 4px rgba(47,93,90,.28);z-index:2;}
+.user-location-marker .ulm-cone-halo{position:absolute;left:50%;top:-6px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:36px solid rgba(255,255,255,.95);transform:translateX(-50%);display:none;z-index:0;}
+.user-location-marker .ulm-cone{position:absolute;left:50%;top:-3px;width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:30px solid var(--brass);transform:translateX(-50%);display:none;opacity:.95;z-index:1;}
+.user-location-marker.has-heading .ulm-cone-halo,
 .user-location-marker.has-heading .ulm-cone{display:block;}
 .historic-toggle-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;flex:none;}
 .historic-toggle-btn:hover{border-color:var(--brass);}
@@ -328,6 +334,9 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .map-latlng-popup-coords{font-size:.72rem;color:var(--slate);margin-bottom:4px;}
 .map-latlng-popup-body a{color:var(--brass-light);font-size:.85rem;text-decoration:none;font-weight:600;}
 .map-latlng-popup-body a:hover{text-decoration:underline;}
+.map-jump-name-popup .leaflet-popup-content-wrapper{background:var(--ink-2);color:var(--fog);border:1px solid var(--brass);border-radius:4px;}
+.map-jump-name-popup .leaflet-popup-tip{background:var(--ink-2);border:1px solid var(--brass);}
+.map-jump-name-popup .leaflet-popup-content{margin:9px 14px;font-weight:600;font-size:.92rem;}
 
 @media (max-width:760px){
   .app{grid-template-columns:1fr;grid-template-rows:56px 1fr;}
@@ -2493,15 +2502,16 @@ function goToMap(id){
   document.getElementById('myBook').classList.remove('open');
   selectedEntityId = id;
   refreshSelectedClusterHighlight();
-  const m = markers[id];
-  if(m && markerClusterGroup.hasLayer(m)){
-    markerClusterGroup.zoomToShowLayer(m, ()=>{ m.openTooltip(); });
-  } else if(m){
-    map.flyTo(e.coords, zoomForEntity(id), {duration:0.7});
-    m.openTooltip();
-  } else {
-    map.flyTo(e.coords, zoomForEntity(id), {duration:0.7});
-  }
+  // クラスタの展開任せ（zoomToShowLayer）だと、展開後の中心がずれて地点が
+  // 画面の隅に寄ってしまうことがあったため、常にその地点の座標そのものへ
+  // まっすぐ移動させる。ズーム値は「その地点が個別ピンとして見えるはずの
+  // 値」（zoomForEntity）を使うので、クラスタも自然に解除される。
+  map.closePopup();
+  map.flyTo(e.coords, zoomForEntity(id), {duration:0.7});
+  L.popup({closeButton:true, className:'map-jump-name-popup', offset:[0,-6]})
+    .setLatLng(e.coords)
+    .setContent(escapeHtml(e.name))
+    .openOn(map);
 }
 
 // ---------- モーダル：新規項目 / 編集 ----------
@@ -3758,8 +3768,8 @@ function ensureUserLocationMarker(userCoords){
   userLocationMarker = L.marker(userCoords, {
     icon: L.divIcon({
       className: 'user-location-marker',
-      html: '<div class="ulm-rotate"><div class="ulm-cone"></div><div class="ulm-dot"></div></div>',
-      iconSize: [26,26], iconAnchor: [13,13]
+      html: '<div class="ulm-rotate"><div class="ulm-cone-halo"></div><div class="ulm-cone"></div><div class="ulm-dot"></div></div>',
+      iconSize: [34,34], iconAnchor: [17,17]
     }),
     zIndexOffset: 1000
   }).addTo(map);

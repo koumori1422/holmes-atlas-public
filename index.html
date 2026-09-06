@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.30.0/mapbox-gl.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Crimson+Pro:wght@400;500;600&display=swap">
@@ -395,6 +396,10 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<!-- メイン地図の日本語ラベル化のためのMapbox一式（任意。MAPBOX_TOKEN未設定時は使われず、従来通りOSM地図のみで動作します） -->
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.30.0/mapbox-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mapbox-gl-leaflet@0.0.16/leaflet-mapbox-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mapbox/mapbox-gl-language@1.0.1/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ---------- Supabase設定 ----------
@@ -715,6 +720,13 @@ supabaseClient.auth.onAuthStateChange(async (event, session)=>{
 // MapTilerダッシュボード → Tiles → United Kingdom → 使いたいNLS古地図を選択 → そこに表示されるタイルIDを入れる
 const MAPTILER_KEY = 'tg7mg7zNbwjUpISPy2YN';
 const MAPTILER_HISTORIC_TILE_ID = 'uk-osgb10k1888';
+
+// ---------- メイン地図の日本語ラベル化設定（★任意。Mapboxに登録後、ここにアクセストークンを入れてください） ----------
+// https://account.mapbox.com/access-tokens/ でトークンを発行し（pk.で始まる公開トークン）、
+// 同じ画面の「URL restrictions」で自分のサイトのドメイン（例: koumori1422.github.io）に
+// 制限をかけてから、ここに貼り付けてください（未設定のままなら、従来通りOSM地図のみで動作します）。
+// Mapboxは無料枠(50,000回/月)を超えると従量課金（超過分 $5/1,000回〜）が発生する点に注意してください。
+const MAPBOX_TOKEN = 'YOUR_MAPBOX_TOKEN';
 
 // ---------- ベースデータ（公開パイロット版と同じ内容を流用） ----------
 const SEED = {
@@ -1776,11 +1788,72 @@ let tilesLoaded=0, tilesErrored=0;
 const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   subdomains:'abc', maxZoom:19
-}).addTo(map);
+});
 tileLayer.on('tileerror', ()=>{ tilesErrored++; mapStatusEl.textContent='地図タイルを読み込めませんでした'; mapStatusEl.classList.add('show'); });
 tileLayer.on('tileload', ()=>{ tilesLoaded++; if(tilesErrored===0) mapStatusEl.classList.remove('show'); });
 mapStatusEl.classList.add('show');
 setTimeout(()=>{ if(tilesLoaded===0 && tilesErrored===0) mapStatusEl.textContent='地図の読み込みに時間がかかっています…'; }, 4000);
+
+// ---------- メイン地図レイヤー：Mapbox（日本語ラベル）を優先し、失敗時はOSM地図へ自動フォールバック ----------
+// MAPBOX_TOKENが未設定（プレースホルダーのまま）、あるいはMapbox関連スクリプトが
+// 読み込めなかった場合は、これまで通りOSM生タイルのみで動作する（後方互換）。
+const mapboxLibsReady = (typeof mapboxgl !== 'undefined') && (typeof L.mapboxGL === 'function');
+const mapboxConfigured = mapboxLibsReady && !MAPBOX_TOKEN.includes('YOUR_MAPBOX');
+let usingMapboxBasemap = false;
+let mapboxGlLayer = null;
+let mapboxErrorTimestamps = [];
+
+function addOsmTiles(){
+  if(!map.hasLayer(tileLayer)) tileLayer.addTo(map);
+}
+
+// Mapboxの読み込みが（クォータ超過・トークン失効・通信障害などで）短時間に繰り返し失敗した場合、
+// サイトの地図表示自体が壊れてしまわないよう、自動的にOSM地図へ切り替える安全策。
+function fallbackToOsmTiles(reason){
+  if(!usingMapboxBasemap) return;
+  usingMapboxBasemap = false;
+  try{ if(mapboxGlLayer && map.hasLayer(mapboxGlLayer)) map.removeLayer(mapboxGlLayer); }catch(e){}
+  addOsmTiles();
+  console.warn('Mapboxの地図を読み込めなかったため、通常の地図に切り替えました:', reason);
+}
+
+function tryAddMapboxBasemap(){
+  try{
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    mapboxGlLayer = L.mapboxGL({
+      accessToken: MAPBOX_TOKEN,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      attribution: '&copy; <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    usingMapboxBasemap = true;
+
+    const glMap = mapboxGlLayer.getMapboxMap();
+    glMap.on('load', ()=>{
+      try{
+        glMap.addControl(new MapboxLanguage({ defaultLanguage: 'ja' }));
+      }catch(e){ console.error('MapboxLanguageの適用に失敗しました:', e); }
+    });
+    glMap.on('error', (e)=>{
+      const now = Date.now();
+      mapboxErrorTimestamps.push(now);
+      mapboxErrorTimestamps = mapboxErrorTimestamps.filter(t => now - t < 10000);
+      // 単発のタイル欠損などは無視し、10秒以内に5回以上失敗が続いた場合だけ切り替える
+      if(mapboxErrorTimestamps.length >= 5){
+        fallbackToOsmTiles((e && e.error && e.error.message) || 'repeated error events');
+      }
+    });
+  }catch(e){
+    console.error('Mapboxレイヤーの初期化に失敗しました:', e);
+    usingMapboxBasemap = false;
+    addOsmTiles();
+  }
+}
+
+if(mapboxConfigured){
+  tryAddMapboxBasemap();
+} else {
+  addOsmTiles();
+}
 
 // ---------- 古地図（ホームズ時代）レイヤーの切り替え ----------
 let historicLayer = null;
@@ -1811,11 +1884,15 @@ historicToggleBtn.addEventListener('click', ()=>{
   historicToggleBtn.classList.toggle('active', showingHistoric);
   historicToggleBtn.textContent = (showingHistoric ? '✓ ' : '') + '🗺️ 古地図';
   if(showingHistoric){
-    map.removeLayer(tileLayer);
+    // メインの地図がMapboxかOSMかを問わず、今表示中の方を退避する
+    if(usingMapboxBasemap && mapboxGlLayer){ map.removeLayer(mapboxGlLayer); }
+    else { map.removeLayer(tileLayer); }
     getHistoricLayer().addTo(map);
   } else {
     map.removeLayer(getHistoricLayer());
-    tileLayer.addTo(map);
+    // 元がMapboxだった場合はMapboxへ、OSMへフォールバック済みだった場合はOSMへ戻す
+    if(usingMapboxBasemap && mapboxGlLayer){ mapboxGlLayer.addTo(map); }
+    else { addOsmTiles(); }
   }
 });
 
@@ -2363,7 +2440,7 @@ function openLegalModal(){
       <p><strong>プライバシーポリシー</strong></p>
       <p>会員登録の際に、メールアドレス・表示名をお預かりします。また、訪問記録・感想・写真・返信など、みなさまが投稿した内容を保存します。これらは本サイトの機能提供（ログイン、投稿の表示、不正利用への対応）の目的でのみ利用し、法令に基づく場合を除き第三者に提供・販売することはありません。</p>
       <p>データはSupabase（クラウドデータベースサービス）上に保存されます。Googleアカウントでログインする場合は、Googleのプライバシーポリシーも適用されます。</p>
-      <p>地図の表示・地名検索には、MapTiler（地図タイル・ジオコーディング）およびNominatim/OpenStreetMap（地名検索の補助）を利用しています。検索欄に入力した文字列は、検索のためにこれらの外部サービスへ送信されます。</p>
+      <p>地図の表示・地名検索には、MapTiler（地図タイル・ジオコーディング）、Nominatim/OpenStreetMap（地名検索の補助）、およびMapbox（メイン地図の日本語ラベル表示）を利用しています。検索欄に入力した文字列は、検索のためにこれらの外部サービスへ送信されます。また地図の閲覧そのものによって、表示中の地図の範囲（緯度経度・ズームレベル等）やIPアドレスといった技術的な情報が、地図タイルの取得のためにMapTiler・Mapbox・OpenStreetMapへ送信されます。</p>
       <p>表示名の変更や、ご自身の投稿の削除はいつでも行えます。アカウント（アカウント画面）から、アカウント本体・個人メモ・お気に入り・ご自身の投稿をまとめて削除することもできます。それ以外のお問い合わせは下記までご連絡ください。</p>
       <p><strong>お問い合わせ先</strong><br><a href="mailto:${LEGAL_CONTACT}">${LEGAL_CONTACT}</a></p>
     </div>

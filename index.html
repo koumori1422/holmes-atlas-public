@@ -122,12 +122,20 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .historic-toggle-btn{height:42px;padding:0 14px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.82rem;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;flex:none;}
 .historic-toggle-btn:hover{border-color:var(--brass);}
 .historic-toggle-btn.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);font-weight:600;}
+/* 作品（正典の話）ごとの絞り込み用セレクト。他のトグルボタンと高さ・角丸・色を
+   揃えつつ、選択中は同じ金色の「オン」表示にする */
+.work-filter-select{height:42px;max-width:min(220px,calc(100vw - 24px));padding:0 10px;border-radius:21px;background:var(--ink-2);border:1px solid var(--line);color:var(--fog);cursor:pointer;font-size:.8rem;box-shadow:0 2px 8px rgba(0,0,0,.35);flex:none;}
+.work-filter-select:hover{border-color:var(--brass);}
+.work-filter-select.active{background:var(--brass);color:#fff;border-color:var(--brass);box-shadow:inset 0 1px 4px rgba(0,0,0,.35);font-weight:600;}
+.work-filter-select option{color:#000;background:#fff;}
 /* タップ後に残るブラウザ標準のフォーカスリングが、金色の「オン」表示と紛らわしかった
    ため、マウス・タッチでのクリック後は輪を出さず、キーボード操作（Tabキー）のときだけ
    オン状態とは違う色味の細い輪を出すようにする */
 .historic-toggle-btn:focus,
+.work-filter-select:focus,
 .locate-map-btn:focus{outline:none;}
 .historic-toggle-btn:focus-visible,
+.work-filter-select:focus-visible,
 .locate-map-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
 /* 221Bへの直行ボタン。地図上の特別マーカー（.leaflet-holmes-special-icon）と
    同じバーガンディ×金の配色にして、ここだけは特別な項目への近道だと分かるようにする */
@@ -391,6 +399,9 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
       </button>
       <button class="historic-toggle-btn" id="historicToggleBtn" title="ホームズ時代の古地図に切り替え">🗺️ 古地図</button>
       <button class="historic-toggle-btn" id="coreOnlyBtn" title="正典・パスティーシュ直結の地点だけ表示">正典登場地のみ</button>
+      <select class="work-filter-select" id="workFilterSelect" title="選んだ作品に登場する地点だけを地図に表示する">
+        <option value="">作品で絞り込み…</option>
+      </select>
       <button class="baker-street-btn" id="bakerStreetBtn" title="221Bベーカー街のページへ一発で移動">🚪 221Bへ</button>
     </div>
     <div class="nearby-panel" id="nearbyPanel"></div>
@@ -1997,6 +2008,60 @@ coreOnlyBtn.addEventListener('click', ()=>{
   renderIndex();
 });
 
+// ---------- 作品（正典の話）ごとの地点絞り込み ----------
+// 「正典登場地のみ」の応用版。各地点データが持つrelated（関連項目）配列に
+// 選んだ作品のIDが含まれているかどうかで絞り込む。地点側のrelatedには
+// 元々「この場所はどの作品に登場するか」がタグ付けされているので、
+// 新しいデータ構造は増やさずそのまま流用できる。
+let workFilter = null;
+function populateWorkFilterSelect(){
+  const sel = document.getElementById('workFilterSelect');
+  if(!sel) return;
+  const prevValue = sel.value;
+  const canonWorks = [], pasticheWorks = [];
+  Object.keys(DATA).forEach(id=>{
+    const e = DATA[id];
+    if(e.type==='work'){ (e.canon ? canonWorks : pasticheWorks).push(id); }
+  });
+  canonWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
+  pasticheWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
+  const optHtml = ids => ids.map(id=>`<option value="${escapeAttr(id)}">${escapeHtml(DATA[id].name)}</option>`).join('');
+  sel.innerHTML = `<option value="">作品で絞り込み…</option>`
+    + (canonWorks.length ? `<optgroup label="正典（コナン・ドイル）">${optHtml(canonWorks)}</optgroup>` : '')
+    + (pasticheWorks.length ? `<optgroup label="正典外（パスティーシュ等）">${optHtml(pasticheWorks)}</optgroup>` : '');
+  if(prevValue && DATA[prevValue] && DATA[prevValue].type==='work'){
+    sel.value = prevValue;
+  } else if(workFilter){
+    // 選択中だった作品がデータの入れ替えで無くなった場合は、絞り込みを解除する
+    workFilter = null;
+    sel.value = '';
+    sel.classList.remove('active');
+  }
+}
+const workFilterSelect = document.getElementById('workFilterSelect');
+workFilterSelect.addEventListener('change', ()=>{
+  workFilter = workFilterSelect.value || null;
+  workFilterSelect.classList.toggle('active', !!workFilter);
+  renderMarkers();
+  renderIndex();
+  if(!workFilter) return;
+  const coordsList = Object.keys(DATA)
+    .filter(id=>{
+      const e = DATA[id];
+      if(e.type!=='place' || !e.coords) return false;
+      if(coreOnlyFilter && e.relevance!=='core') return false;
+      return (e.related||[]).includes(workFilter);
+    })
+    .map(id=>DATA[id].coords);
+  if(coordsList.length===0){
+    showToast('この作品に紐づく地図上の地点は見つかりませんでした。');
+  } else if(coordsList.length===1){
+    map.flyTo(coordsList[0], Math.max(map.getZoom(), 14), {duration:0.7});
+  } else {
+    map.flyToBounds(L.latLngBounds(coordsList), {padding:[48,48], maxZoom:15, duration:0.7});
+  }
+});
+
 // 221Bへの直行ボタン。「一発で飛べる」ようにしたいとのことなので、地図を動かすだけの
 // goToMap()ではなく、showEntity()で説明ページまで一気に開く
 document.getElementById('bakerStreetBtn').addEventListener('click', ()=>{
@@ -2144,6 +2209,7 @@ function renderMarkers(){
     const e = DATA[id];
     if(e.type==='place' && e.coords){
       if(coreOnlyFilter && e.relevance!=='core') return;
+      if(workFilter && !(e.related||[]).includes(workFilter)) return;
       const isSpecial = id === 'baker-street';
       const icon = isSpecial ? makeSpecialIcon() : (e.relevance==='peripheral' ? makePeripheralIcon() : (e.relevance==='misc' ? makeMiscIcon() : makeIcon()));
       const m = L.marker(e.coords,{icon, zIndexOffset: isSpecial ? 2000 : 0});
@@ -2222,7 +2288,9 @@ function renderIndex(){
     if(e.type==='work'){
       (e.canon ? groups.work : groups['work-pastiche']).push(id);
     } else if(e.type==='place'){
-      if(!coreOnlyFilter || e.relevance==='core') groups.place.push(id);
+      const passCore = !coreOnlyFilter || e.relevance==='core';
+      const passWork = !workFilter || (e.related||[]).includes(workFilter);
+      if(passCore && passWork) groups.place.push(id);
     } else {
       groups[e.type].push(id);
     }
@@ -2680,7 +2748,7 @@ function openEntityModal(prefill){
         overrides[relId].extraRelated = Array.from(extra);
       });
       await Promise.all(related.map(relId=>rpcObjNestedArrayAddUnique('p-overrides', relId, 'extraRelated', newId)));
-      DATA = buildData(); renderMarkers(); renderIndex();
+      DATA = buildData(); renderMarkers(); renderIndex(); populateWorkFilterSelect();
       clearDraft('newEntity', 'new');
       closeModal(); showToast('追加しました。');
       showEntity(newId);
@@ -2761,7 +2829,7 @@ function openEditModal(targetId){
     if(isReviewer()){
       overrides[targetId] = Object.assign(overrides[targetId] || {}, draft);
       await rpcObjMerge('p-overrides', targetId, draft);
-      DATA = buildData(); renderMarkers(); renderIndex();
+      DATA = buildData(); renderMarkers(); renderIndex(); populateWorkFilterSelect();
       clearDraft('editEntity', targetId);
       closeModal(); showToast('保存しました。');
       showEntity(targetId, {fromTrail:true});
@@ -2988,7 +3056,7 @@ async function approveProposal(propId){
   }
   p.status = 'approved';
   await rpcArrPatch('p-proposals', propId, {status:'approved'});
-  DATA = buildData(); renderMarkers(); renderIndex();
+  DATA = buildData(); renderMarkers(); renderIndex(); populateWorkFilterSelect();
   showToast('承認しました。');
   updateReviewCountBadge();
   openReviewDashboard();
@@ -3041,7 +3109,7 @@ async function deleteEntity(targetId){
   privateNotes = privateNotes.filter(n=>n.entityId!==targetId);
   await safeSet(privateNotesKey(), privateNotes);
   DATA = buildData();
-  renderMarkers(); renderIndex();
+  renderMarkers(); renderIndex(); populateWorkFilterSelect();
   panel.classList.remove('open');
   showToast('項目を削除しました。');
 }
@@ -3849,6 +3917,7 @@ document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.action-btns')
   renderMarkers();
   renderJournalMarkers();
   renderIndex();
+  populateWorkFilterSelect();
 })();
 </script>
 </body>

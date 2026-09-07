@@ -125,28 +125,43 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .mt-seg:hover{opacity:1;}
 .mt-seg.active{color:var(--brass-light);opacity:1;font-weight:600;}
 .mt-ic{width:17px;height:17px;flex:none;}
-/* 作品で絞り込みのセレクトは、ネイティブの<select>の見た目を消し（appearance:none）、
-   帯の中の他の項目と同じ「文字だけ」のセグメントに見せかける。矢印はCSSで別途重ねる。
-   ★以前は作品名が長いときに…で省略していたが、「文字が欠けるのは避けたい」という
-   要望から、省略はやめて選ばれている作品名を必ず全部表示する。その分、帯の横幅が
-   画面より広くなることがあるが、帯の中身は横スクロールできるので隠れて見えなく
-   なることはない（欠ける＝一部だけ表示、ではなく、必要なら横にスクロールして
-   全文を読める、という形にしている）。 */
-.mt-select-wrap{position:relative;padding:0 26px 0 12px;}
-.mt-select{appearance:none;-webkit-appearance:none;background:none;border:none;color:inherit;font:inherit;
-  cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
-.mt-select.active{color:var(--brass-light);font-weight:600;}
-.mt-select option{color:#000;background:#fff;}
-/* 一部のスマホ用ブラウザでは、選択肢を選び終わった直後に、外したはずの
-   ネイティブの見た目（白背景の枠）が一瞬だけ残って見えてしまうことがあった。
-   フォーカス・タップ時の背景色をこちらで明示的に上書きし、白い枠が
-   ちらつかないようにしている。 */
-.mt-select:focus,
-.mt-select:active{background:transparent!important;color:inherit!important;-webkit-appearance:none!important;}
-.mt-chevron{position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.75;}
+/* 作品で絞り込みは、以前はネイティブの<select>で作っていたが、スマホの
+   ブラウザによっては選択直後にブラウザ標準の明るい配色（白い枠）で
+   描き直してしまうことがあり、CSSの指定だけでは機種差を潰しきれなかった。
+   自前のボタン＋一覧（.mt-select-btn / .mt-select-menu）に置き換えることで、
+   ネイティブの部品を一切使わず、どの機種でも常にこちらの指定通りの
+   見た目になるようにしている。ボタンはただのボタンなので、幅もボタン自身の
+   文字幅にそのまま追従し、以前のようなJSでの幅の測り直しも不要になった。
+   ★文字が欠けるのは避けたいという要望から、長い作品名でも省略せず全部
+   表示する。その分、帯の横幅が画面より広くなることがあるが、帯の中身は
+   横スクロールできるので隠れて見えなくなることはない。 */
+.mt-select-wrap{position:relative;padding:0;}
+.mt-select-btn{display:flex;align-items:center;gap:6px;flex:none;background:none;border:none;color:inherit;
+  opacity:.82;font:inherit;cursor:pointer;white-space:nowrap;padding:0 12px;height:100%;
+  -webkit-tap-highlight-color:transparent;}
+.mt-select-btn:hover{opacity:1;}
+.mt-select-btn.active{color:var(--brass-light);opacity:1;font-weight:600;}
+.mt-select-btn:focus{outline:none;}
+.mt-select-btn:focus-visible{outline:2px solid var(--fog);outline-offset:-2px;}
+.mt-select-wrap.open .mt-chevron{transform:rotate(180deg);}
+.mt-chevron{transition:transform .15s ease;opacity:.75;flex:none;}
+/* 一覧本体は帯（.map-controls-cluster、横スクロールのためoverflow-x:autoに
+   している）の外に置いたsiblingで、開いたときにJSでボタンの真上へ位置を
+   合わせる。帯の中に置くと横スクロール用のoverflow設定に巻き込まれて、
+   上にはみ出す部分が見えなくなってしまうため。 */
+.mt-select-menu{position:absolute;z-index:600;min-width:180px;max-width:min(320px,80vw);
+  max-height:280px;overflow-y:auto;background:var(--parchment);border:1px solid var(--line);
+  border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.35);display:none;}
+.mt-select-menu.show{display:block;}
+.mt-select-menu-section{padding:6px 12px;font-size:.7rem;color:var(--slate);background:var(--parchment-2);}
+.mt-select-menu-item{display:block;width:100%;text-align:left;background:#fff;border:none;
+  border-bottom:1px solid var(--line);padding:9px 12px;font-size:.85rem;color:var(--charcoal);
+  cursor:pointer;font-family:'Crimson Pro',serif;}
+.mt-select-menu-item:hover{background:#f7ecd0;}
+.mt-select-menu-item.active{background:#f0e6c8;font-weight:600;}
 @media (max-width:480px){
   .mt-seg{padding:0 9px;gap:5px;}
-  .mt-select-wrap{padding:0 22px 0 9px;}
+  .mt-select-btn{padding:0 9px;}
 }
 /* 一部の古い/小さめの機種（画面幅360px以下）ではここまでの調整でもまだ帯が
    収まりきらないことがあったため、さらに一段階詰める。それでも収まりきらない
@@ -154,9 +169,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 @media (max-width:360px){
   .mt-seg{padding:0 4px;gap:3px;font-size:.72rem;}
   .mt-seg .mt-ic{width:15px;height:15px;}
-  .mt-select-wrap{padding:0 14px 0 4px;}
-  .mt-select{font-size:.72rem;}
-  .mt-chevron{right:4px;}
+  .mt-select-btn{padding:0 4px;font-size:.72rem;}
 }
 /* 現在地ボタン：帯（.map-controls-cluster）とは別の、帯のすぐ上に浮かぶ丸ボタン。
    帯と同じ真鍮パネル調の配色にして「同じ計器盤の仲間」だと分かるようにしつつ、
@@ -191,9 +204,9 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
    ため、マウス・タッチでのクリック後は輪を出さず、キーボード操作（Tabキー）のときだけ
    細い輪を出すようにする */
 .mt-seg:focus,
-.mt-select:focus{outline:none;}
+.mt-select-btn:focus{outline:none;}
 .mt-seg:focus-visible,
-.mt-select:focus-visible{outline:2px solid var(--fog);outline-offset:-2px;}
+.mt-select-btn:focus-visible{outline:2px solid var(--fog);outline-offset:-2px;}
 /* 221Bへの直行ボタン。帯からは独立させ、現在地ボタンのさらに上に積み重ねた
    ピルにしている。地図上の特別マーカー（.leaflet-holmes-special-icon）と
    同じバーガンディ×金の配色にして、特別な項目への近道だと分かるようにしている。 */
@@ -476,14 +489,23 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
         <span id="historicToggleLabel">古地図</span>
       </button>
       <span class="mt-div"></span>
-      <span class="mt-seg mt-select-wrap">
-        <select class="mt-select" id="workFilterSelect" title="選んだ作品に登場する地点だけを地図に表示する">
-          <option value="" selected disabled hidden>作品選択</option>
-          <option value="__all__">全作品表示</option>
-        </select>
-        <svg class="mt-ic mt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      <span class="mt-seg mt-select-wrap" id="workFilterWrap">
+        <button type="button" class="mt-select-btn" id="workFilterBtn" title="選んだ作品に登場する地点だけを地図に表示する" aria-haspopup="listbox" aria-expanded="false">
+          <span id="workFilterBtnLabel">作品選択</span>
+          <svg class="mt-ic mt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
       </span>
     </div>
+    <!-- 作品選択はネイティブの<select>をやめ、自前のボタン＋一覧に置き換えている。
+         ネイティブのselectはappearance:noneで見た目を消したつもりでも、スマホの
+         ブラウザによっては選択直後にブラウザ標準の明るい配色（白い枠）で
+         描き直してしまうことがあり、CSSだけでは機種差を潰しきれなかったため。
+         自前のボタン＋一覧なら、どの機種でも常にこちらの指定通りの見た目になる。
+         一覧（#workFilterMenu）は帯（.map-controls-cluster、横スクロールのため
+         overflow-x:autoにしている）の外に置き、帯の真上に浮かせて表示する
+         （帯の中に置くと、横スクロール用のoverflow設定に巻き込まれて
+         上にはみ出す部分が見えなくなってしまうため）。 -->
+    <div class="mt-select-menu" id="workFilterMenu" role="listbox"></div>
     <!-- 現在地ボタン・221Bへボタンは帯から独立させ、帯の真上に積み重ねた
          浮きボタンにしている。こうすることで「正典のみ」「古地図」の文字ラベルを
          スマホでも消さずに残せる。221Bへは特別な項目への近道なので、これまで通り
@@ -2109,73 +2131,43 @@ coreOnlyBtn.addEventListener('click', ()=>{
 // 元々「この場所はどの作品に登場するか」がタグ付けされているので、
 // 新しいデータ構造は増やさずそのまま流用できる。
 let workFilter = null;
-// ネイティブの<select>は、appearance:noneで見た目を消しても「今選ばれている
-// 文字の長さ」ではなく「一覧の中で一番長い項目の長さ」に合わせて箱の幅が
-// 決まってしまう（ブラウザの標準仕様）。作品名の一覧には長いタイトルもあるため、
-// 短い項目（「作品選択」など）を選んでいるときに矢印マークとの間へ大きな
-// 余白ができてしまっていた。今選ばれている文字の実際の幅をこちらで測って
-// widthを直接指定することで、矢印マークが常に文字のすぐ横に来るようにする。
-const workFilterMeasureEl = document.createElement('span');
-workFilterMeasureEl.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;top:-9999px;left:-9999px;';
-document.body.appendChild(workFilterMeasureEl);
-function sizeWorkFilterSelect(){
-  const sel = document.getElementById('workFilterSelect');
-  if(!sel) return;
-  const opt = sel.options[sel.selectedIndex];
-  const text = opt ? opt.textContent : '';
-  workFilterMeasureEl.style.font = getComputedStyle(sel).font;
-  workFilterMeasureEl.textContent = text;
-  const w = workFilterMeasureEl.getBoundingClientRect().width;
-  sel.style.width = (Math.ceil(w) + 2) + 'px';
+// workFilterValueは表示上の「今選ばれている項目」を覚えておくための値。
+// ''＝まだ何も選んでいない（プレースホルダー「作品選択」のまま）、
+// '__all__'＝「全作品表示」を選んだ、それ以外＝選んだ作品のID。
+let workFilterValue = '';
+function setWorkFilterLabel(text, active){
+  const label = document.getElementById('workFilterBtnLabel');
+  if(label) label.textContent = text;
+  const btn = document.getElementById('workFilterBtn');
+  if(btn) btn.classList.toggle('active', !!active);
 }
-function populateWorkFilterSelect(){
-  const sel = document.getElementById('workFilterSelect');
-  if(!sel) return;
-  const prevValue = sel.value;
-  const canonWorks = [], pasticheWorks = [];
-  Object.keys(DATA).forEach(id=>{
-    const e = DATA[id];
-    if(e.type==='work'){ (e.canon ? canonWorks : pasticheWorks).push(id); }
-  });
-  canonWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
-  pasticheWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
-  const optHtml = ids => ids.map(id=>`<option value="${escapeAttr(id)}">${escapeHtml(DATA[id].name)}</option>`).join('');
-  // 先頭の「作品選択」は、まだ何も選んでいないことを示すだけのプレースホルダー
-  // （disabled+hiddenなので一覧には出ず、選び直すこともできない）。
-  // 「全作品表示」はそれとは別の、実際に選べる一つの選択肢として並べている。
-  // ★一旦、正典外（パスティーシュ等）の作品は選択肢から外し、正典作品のみを
-  // 並べている（pasticheWorksの集計自体は残してあるので、元に戻す場合は
-  // 下のコメントアウトを外すだけでよい）。
-  sel.innerHTML = `<option value="" disabled hidden>作品選択</option><option value="__all__">全作品表示</option>`
-    + (canonWorks.length ? `<optgroup label="正典（コナン・ドイル）">${optHtml(canonWorks)}</optgroup>` : '');
-    // + (pasticheWorks.length ? `<optgroup label="正典外（パスティーシュ等）">${optHtml(pasticheWorks)}</optgroup>` : '');
-  if(prevValue && DATA[prevValue] && DATA[prevValue].type==='work'){
-    sel.value = prevValue;
-  } else if(prevValue === '__all__'){
-    sel.value = '__all__';
-  } else if(workFilter){
-    // 選択中だった作品がデータの入れ替えで無くなった場合は、絞り込みを解除する
-    workFilter = null;
-    sel.classList.remove('active');
-    sel.value = '';
-  } else {
-    sel.value = prevValue || '';
-  }
-  sizeWorkFilterSelect();
+function closeWorkFilterMenu(){
+  const menu = document.getElementById('workFilterMenu');
+  const wrap = document.getElementById('workFilterWrap');
+  const btn = document.getElementById('workFilterBtn');
+  if(menu) menu.classList.remove('show');
+  if(wrap) wrap.classList.remove('open');
+  if(btn) btn.setAttribute('aria-expanded','false');
 }
-const workFilterSelect = document.getElementById('workFilterSelect');
-sizeWorkFilterSelect();
-// Webフォント（Crimson Pro）の読み込み完了前に測ると幅がわずかにずれるため、
-// 読み込み完了後にもう一度測り直して微調整する。
-if(document.fonts && document.fonts.ready){ document.fonts.ready.then(sizeWorkFilterSelect); }
-workFilterSelect.addEventListener('change', ()=>{
-  const v = workFilterSelect.value;
-  workFilter = (v && v !== '__all__') ? v : null;
-  workFilterSelect.classList.toggle('active', !!workFilter);
-  // 選択直後に幅を変えると、一部のスマホ用ブラウザでネイティブの選択UIが
-  // 閉じきる前に描画が乱れ、白い枠が一瞬残って見えることがあった。
-  // 1フレーム待ってから幅を測り直すことで、その描画崩れを避けている。
-  requestAnimationFrame(sizeWorkFilterSelect);
+function openWorkFilterMenu(){
+  const btn = document.getElementById('workFilterBtn');
+  const menu = document.getElementById('workFilterMenu');
+  const wrap = document.getElementById('workFilterWrap');
+  const stage = document.querySelector('.stage');
+  if(!btn || !menu || !stage) return;
+  const br = btn.getBoundingClientRect();
+  const sr = stage.getBoundingClientRect();
+  menu.style.right = Math.max(8, sr.right - br.right) + 'px';
+  menu.style.bottom = (sr.bottom - br.top + 8) + 'px';
+  menu.classList.add('show');
+  wrap.classList.add('open');
+  btn.setAttribute('aria-expanded','true');
+}
+function selectWorkFilter(value, label){
+  workFilterValue = value;
+  workFilter = (value && value !== '__all__') ? value : null;
+  setWorkFilterLabel(label, !!workFilter);
+  closeWorkFilterMenu();
   renderMarkers();
   renderIndex();
   if(!workFilter) return;
@@ -2194,7 +2186,60 @@ workFilterSelect.addEventListener('change', ()=>{
   } else {
     map.flyToBounds(L.latLngBounds(coordsList), {padding:[48,48], maxZoom:15, duration:0.7});
   }
+}
+function populateWorkFilterSelect(){
+  const menu = document.getElementById('workFilterMenu');
+  if(!menu) return;
+  const prevValue = workFilterValue;
+  const canonWorks = [], pasticheWorks = [];
+  Object.keys(DATA).forEach(id=>{
+    const e = DATA[id];
+    if(e.type==='work'){ (e.canon ? canonWorks : pasticheWorks).push(id); }
+  });
+  canonWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
+  pasticheWorks.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
+  const itemHtml = (value, label) => `<button type="button" class="mt-select-menu-item${value===prevValue?' active':''}" data-value="${escapeAttr(value)}" role="option">${escapeHtml(label)}</button>`;
+  // 「全作品表示」は実際に選べる一つの選択肢として並べている。
+  // ★一旦、正典外（パスティーシュ等）の作品は選択肢から外し、正典作品のみを
+  // 並べている（pasticheWorksの集計自体は残してあるので、元に戻す場合は
+  // 下のコメントアウトを外すだけでよい）。
+  let html = itemHtml('__all__', '全作品表示');
+  if(canonWorks.length){
+    html += `<div class="mt-select-menu-section">正典（コナン・ドイル）</div>`;
+    html += canonWorks.map(id=>itemHtml(id, DATA[id].name)).join('');
+  }
+  // if(pasticheWorks.length){
+  //   html += `<div class="mt-select-menu-section">正典外（パスティーシュ等）</div>`;
+  //   html += pasticheWorks.map(id=>itemHtml(id, DATA[id].name)).join('');
+  // }
+  menu.innerHTML = html;
+  menu.querySelectorAll('.mt-select-menu-item').forEach(item=>{
+    item.addEventListener('click', ()=>selectWorkFilter(item.dataset.value, item.textContent));
+  });
+  if(prevValue && prevValue !== '__all__' && DATA[prevValue] && DATA[prevValue].type==='work'){
+    setWorkFilterLabel(DATA[prevValue].name, true);
+  } else if(prevValue === '__all__'){
+    setWorkFilterLabel('全作品表示', false);
+  } else if(workFilter){
+    // 選択中だった作品がデータの入れ替えで無くなった場合は、絞り込みを解除する
+    workFilter = null;
+    workFilterValue = '';
+    setWorkFilterLabel('作品選択', false);
+  }
+  // それ以外（プレースホルダーのまま）は変更なし
+}
+const workFilterBtn = document.getElementById('workFilterBtn');
+workFilterBtn.addEventListener('click', (ev)=>{
+  ev.stopPropagation();
+  if(document.getElementById('workFilterWrap').classList.contains('open')) closeWorkFilterMenu();
+  else openWorkFilterMenu();
 });
+document.addEventListener('click', (ev)=>{
+  if(!ev.target.closest('#workFilterMenu') && !ev.target.closest('#workFilterBtn')) closeWorkFilterMenu();
+});
+document.addEventListener('keydown', (ev)=>{ if(ev.key==='Escape') closeWorkFilterMenu(); });
+window.addEventListener('resize', closeWorkFilterMenu);
+document.getElementById('mapControlsCluster').addEventListener('scroll', closeWorkFilterMenu);
 
 // 221Bへの直行ボタン。「一発で飛べる」ようにしたいとのことなので、地図を動かすだけの
 // goToMap()ではなく、showEntity()で説明ページまで一気に開く

@@ -283,6 +283,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .badge-pastiche{background:var(--pastiche);}
 .badge-peripheral{background:none;border:1px solid var(--slate);color:var(--slate)!important;}
 .badge-misc{background:none;border:1px solid var(--moss);color:var(--moss)!important;}
+.tag-row{margin:0 0 10px;}
+.tag-chip{display:inline-block;font-size:.68rem;padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--slate);background:rgba(171,131,71,0.08);margin:0 5px 5px 0;}
 .panel-body h3{font-family:'Playfair Display',serif;font-weight:600;font-size:1.4rem;margin:2px 0 12px;color:var(--ink);}
 .panel-body img.entity-img{width:100%;border-radius:3px;margin-bottom:14px;border:1px solid var(--line);}
 .photo-row{display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;}
@@ -1069,6 +1071,24 @@ const SEED = {
   "japan-holmes-spots-term": {type:"term", name:"日本国内のホームズゆかりの地", image:null,
     desc:"軽井沢のホームズ像、鎌倉のBAM鎌倉、神戸北野異人館の英国館など、日本国内にもホームズの世界観を体験できるスポットが点在する。",
     related:["karuizawa","bam-kamakura","eikoku-kan-kobe"]},
+  "persian-slipper": {type:"term", tags:["小道具"], name:"ペルシャ・スリッパ", image:null,
+    desc:"暖炉脇の肘掛け椅子のそばに置かれた、つま先の部分に刻みたばこを詰め込んで使う古いスリッパ。[[musgrave-ritual|『マスグレーヴ家の儀式』]]などで言及される、[[baker-street|ベーカー街221B]]の散らかった書斎を象徴する小道具のひとつ。灰皿代わりの石炭入れや、暖炉の上にジャックナイフで留めた未整理の手紙の束と並び、几帳面な推理と裏腹などこか無頓着な私生活を物語る。",
+    related:["holmes","baker-street","musgrave-ritual"]},
+  "seven-percent-solution-syringe": {type:"term", tags:["小道具","医学・科学"], name:"注射器と7パーセント溶液", image:null,
+    desc:"[[sign-of-four|『四つの署名』]]の冒頭、事件のない退屈な時期のホームズが自らの腕に打つコカインの水溶液。[[watson|ワトスン]]は医師の立場からこの習慣を繰り返し諫めるが、ホームズは「単調な生活には耐えられない」と取り合わない。19世紀末はまだコカインが薬局で合法に入手できた時代であり、この描写は当時の医薬品事情をそのまま映してもいる。",
+    related:["holmes","watson","sign-of-four"]},
+  "tobacco-ash-monograph": {type:"term", tags:["小道具","推理法・思考法"], name:"たばこの灰の研究", image:null,
+    desc:"ホームズが著したとされる論文「140種の葉巻・パイプ・紙巻きたばこの灰の判別法について」。[[study-in-scarlet|『緋色の研究』]]などで言及され、現場に落ちた灰の色や形状から、犯人が吸っていたたばこの銘柄まで割り出してみせる。専門分野を極端に狭く深く掘り下げる一方、天文学の知識には無頓着という、ホームズの偏った博識ぶりを象徴する逸話のひとつ。",
+    related:["holmes","study-in-scarlet"]},
+  "science-of-deduction": {type:"term", tags:["推理法・思考法"], name:"演繹法（The Science of Deduction）", image:null,
+    desc:"結果や痕跡から、そこに至った原因や経緯を遡って特定する、ホームズ流の推理の核。[[study-in-scarlet|『緋色の研究』]]で[[watson|ワトスン]]が偶然目にする雑誌記事「生活の書」は、ホームズ自身が書いたこの推理法についての論文だった。一滴の水からナイアガラの滝やアトランティック海の存在を推理できる、という記事中の一節を、ワトスンは当初「妄言だ」と切って捨てている。",
+    related:["holmes","watson","study-in-scarlet"]},
+  "see-vs-observe": {type:"term", tags:["推理法・思考法"], name:"観察と推理の違い", image:null,
+    desc:"「見る（see）」ことと「観察する（observe）」ことは違う、というホームズの持論。[[scandal-in-bohemia|『ボヘミアの醜聞』]]では、221Bの階段を何百回と上り下りしてきたはずの[[watson|ワトスン]]が、その段数を答えられない場面が代表例として語られる。同じものを目にしていても、意識して見なければ情報として記憶に残らない、という観察法の基本を端的に示すやり取りである。",
+    related:["holmes","watson","scandal-in-bohemia"]},
+  "disguise-art": {type:"term", tags:["推理法・思考法"], name:"変装術", image:null,
+    desc:"街の御者や聖職者、老船員、老婆にまで扮してみせる、ホームズの得意技のひとつ。[[scandal-in-bohemia|『ボヘミアの醜聞』]]では聖職者に化けて[[irene-adler|アイリーン・アドラー]]の自宅に上がり込み、[[dying-detective-work|『瀕死の探偵』]]では危篤を装ってワトスンすら欺く。単に外見を似せるだけでなく、役柄になりきって振る舞う演技力までもが、変装を見破られない鍵として描かれる。",
+    related:["holmes","scandal-in-bohemia","dying-detective-work"]},
 
   "st-johns-wood-briony-lodge": {type:"place", name:"セント・ジョンズ・ウッド（ブライオニー荘）", coords:[51.5347,-0.1740], image:null,
     desc:"『ボヘミアの醜聞』で、ホームズが“あの女性”と呼ぶアイリーン・アドラーが暮らしていたブライオニー荘があったとされる界隈。ボヘミア国王の依頼でホームズが張り込みを行った舞台。",
@@ -1544,7 +1564,8 @@ function buildData(){
       photos: [...((base.photos || (base.photoOld||base.photoNow ? [base.photoOld,base.photoNow].filter(Boolean) : [])) || []), ...(ov.extraPhotos||[])],
       canon: ov.canon !== undefined ? ov.canon : base.canon,
       relevance: ov.relevance || base.relevance || 'core',
-      related: Array.from(new Set([...(base.related||[]), ...(ov.extraRelated||[])]))
+      related: Array.from(new Set([...(base.related||[]), ...(ov.extraRelated||[])])),
+      tags: ov.tags || base.tags || []
     };
   });
   Object.keys(additions).forEach(id=>{
@@ -1558,7 +1579,8 @@ function buildData(){
       photos: [...((a.photos || (a.photoOld||a.photoNow ? [a.photoOld,a.photoNow].filter(Boolean) : [])) || []), ...(ov.extraPhotos||[])],
       canon: ov.canon !== undefined ? ov.canon : (a.canon !== undefined ? a.canon : true),
       relevance: ov.relevance || a.relevance || 'core',
-      related: Array.from(new Set([...(a.related||[]), ...(ov.extraRelated||[])]))
+      related: Array.from(new Set([...(a.related||[]), ...(ov.extraRelated||[])])),
+      tags: ov.tags || a.tags || []
     };
   });
   return data;
@@ -2671,12 +2693,17 @@ function showEntity(id, opts={}){
     ? `<p class="entity-desc collapsed" id="entityDescP">${descBodyHtml}</p><button class="desc-toggle-btn" id="descToggleBtn">続きを表示</button>`
     : `<p class="entity-desc">${descBodyHtml}</p>`;
 
+  const tagsHtml = (e.tags && e.tags.length)
+    ? `<div class="tag-row">${e.tags.map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div>`
+    : '';
+
   panelContent.innerHTML = `
     <div class="trail">${trailHtml}</div>
     <div class="panel-body">
       <span class="type-badge badge-${entityClass(e)}">${entityLabel(e)}</span>${e.relevance==='peripheral' ? ' <span class="type-badge badge-peripheral">周辺情報</span>' : (e.relevance==='misc' ? ' <span class="type-badge badge-misc">その他</span>' : '')}
       ${favBtnHtml}
       <h3>${e.name}</h3>
+      ${tagsHtml}
       ${mapJumpHtml}
       ${imgHtml}
       ${descHtml}

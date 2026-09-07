@@ -2610,6 +2610,25 @@ let trail = [];
 let lastShownPlace = null;
 const pinIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="9" r="2.6"/><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11z"/></svg>';
 
+// ---------- 個別項目のディープリンク（?id=...） ----------
+// 各項目に固有のURLを持たせ、共有・再訪問・ブラウザの戻る/進むに対応する。
+function urlForEntity(id){
+  const url = new URL(location.href);
+  url.search = '?id=' + encodeURIComponent(id);
+  url.hash = '';
+  return url.pathname + url.search;
+}
+function setUrlForEntity(id){
+  const target = urlForEntity(id);
+  if(location.pathname + location.search === target) return; // 既に同じURLなら履歴を汚さない
+  history.pushState({entityId:id}, '', target);
+}
+function clearEntityUrl(){
+  const target = location.pathname;
+  if(location.pathname + location.search === target) return;
+  history.pushState({}, '', target);
+}
+
 function renderPhoto(photo, entityId){
   if(!photo || !photo.url) return '';
   const creditBits = [];
@@ -2634,6 +2653,8 @@ function renderPhotoGallery(photos, entityId){
 function showEntity(id, opts={}){
   const e = DATA[id];
   if(!e) return;
+  if(!opts.skipUrlUpdate) setUrlForEntity(id);
+  document.title = e.name + ' | ホームズ・アトラス';
   document.getElementById('timeline').classList.remove('open');
   document.getElementById('myBook').classList.remove('open');
   if(!opts.fromTrail){ trail = trail.filter(t=>t!==id); trail.push(id); if(trail.length>6) trail.shift(); }
@@ -2774,9 +2795,27 @@ document.getElementById('panelClose').addEventListener('click', ()=>{
   panel.classList.remove('open');
   selectedEntityId = null;
   refreshSelectedClusterHighlight();
+  clearEntityUrl();
+  document.title = 'ホームズ・アトラス';
   if(lastShownPlace){
     map.flyTo(lastShownPlace.coords, lastShownPlace.zoom, {duration:0.6});
     lastShownPlace = null;
+  }
+});
+// ブラウザの戻る/進むボタンで ?id= が変わった時に、表示側も追従させる
+window.addEventListener('popstate', ()=>{
+  const id = new URLSearchParams(location.search).get('id');
+  if(id && DATA[id]){
+    showEntity(id, {fromTrail:true, skipUrlUpdate:true});
+  } else if(panel.classList.contains('open')){
+    panel.classList.remove('open');
+    selectedEntityId = null;
+    refreshSelectedClusterHighlight();
+    document.title = 'ホームズ・アトラス';
+    if(lastShownPlace){
+      map.flyTo(lastShownPlace.coords, lastShownPlace.zoom, {duration:0.6});
+      lastShownPlace = null;
+    }
   }
 });
 
@@ -2790,6 +2829,7 @@ function flyToAvoidingPanel(latlng, zoom){
 function goToMap(id){
   const e = DATA[id];
   if(!e || !e.coords) return;
+  setUrlForEntity(id);
   panel.classList.remove('open');
   document.getElementById('timeline').classList.remove('open');
   document.getElementById('myBook').classList.remove('open');
@@ -4143,6 +4183,10 @@ document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.action-btns')
   renderJournalMarkers();
   renderIndex();
   populateWorkFilterSelect();
+  // URLに ?id=項目ID が付いていれば、その項目の詳細を開いた状態で起動する
+  // （SNSなどで共有された個別ページのリンクから直接開けるようにするため）
+  const initialEntityId = new URLSearchParams(location.search).get('id');
+  if(initialEntityId && DATA[initialEntityId]) showEntity(initialEntityId, {skipUrlUpdate:true});
 })();
 </script>
 </body>

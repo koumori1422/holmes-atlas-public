@@ -357,9 +357,11 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .journal-card .jc-meta{font-size:.74rem;color:var(--slate);}
 .journal-card .jc-actions{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;}
 .jc-delete-btn{background:none;border:1px solid var(--burgundy);color:var(--burgundy);padding:3px 10px;border-radius:3px;font-size:.72rem;cursor:pointer;}
-.jc-like-btn,.jc-reply-toggle-btn,.jc-report-btn{background:none;border:1px solid var(--line);color:var(--slate);padding:3px 10px;border-radius:3px;font-size:.72rem;cursor:pointer;}
+.jc-like-btn,.jc-reply-toggle-btn,.jc-report-btn,.jc-share-btn{background:none;border:1px solid var(--line);color:var(--slate);padding:3px 10px;border-radius:3px;font-size:.72rem;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;}
 .jc-like-btn.liked{border-color:var(--burgundy);color:var(--burgundy);}
 .jc-report-btn:hover{border-color:var(--burgundy);color:var(--burgundy);}
+.jc-share-btn:hover{border-color:var(--brass);color:var(--ink);}
+.jc-share-btn svg{width:12px;height:12px;flex:none;}
 .jc-replies{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);}
 .jc-reply{font-size:.82rem;line-height:1.6;margin-bottom:6px;}
 .jc-reply-del-btn{background:none;border:none;color:var(--burgundy);font-size:.72rem;cursor:pointer;margin-left:8px;padding:0;text-decoration:underline;}
@@ -376,6 +378,12 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(28,36,48,.65);display:none;align-items:center;justify-content:center;z-index:2000;padding:20px;}
 .modal-overlay.open{display:flex;}
+.modal-overlay.open.picking{display:none;}
+.geo-map-pick-btn{display:block;width:100%;margin-top:6px;padding:8px 14px;text-align:center;}
+.map-pick-banner{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:2100;background:var(--ink);color:#fff;border-radius:20px;padding:8px 8px 8px 16px;display:flex;align-items:center;gap:10px;font-size:.82rem;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:calc(100vw - 32px);}
+.map-pick-banner button{flex:none;background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 12px;border-radius:14px;font-size:.78rem;cursor:pointer;font-family:inherit;}
+.map-pick-banner button:hover{background:rgba(255,255,255,.28);}
+body.map-picking .leaflet-container{cursor:crosshair;}
 .modal{background:var(--parchment);color:var(--charcoal);border-radius:5px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:22px 24px 26px;border-top:4px solid var(--brass);}
 .modal h3{font-family:'Playfair Display',serif;margin:0 0 4px;font-size:1.25rem;color:var(--ink);}
 .modal .modal-sub{font-size:.82rem;opacity:.7;margin-bottom:16px;}
@@ -2483,7 +2491,7 @@ function renderMarkers(){
       const m = L.marker(e.coords,{icon, zIndexOffset: isSpecial ? 2000 : 0});
       m.entityName = e.name;
       m.entityId = id;
-      m.on('click', ()=>showEntity(id));
+      m.on('click', ()=>{ if(mapPickModeActive) return; showEntity(id); });
       if(isSpecial){
         m.bindTooltip(e.name,{direction:'right',offset:[12,0],permanent:true,className:'place-label-special'});
         m.on('mouseover', ()=>{ m.getTooltip()?.getElement()?.classList.add('force-show'); });
@@ -2515,6 +2523,7 @@ updateBasemapForZoom(); // 初期表示のズームに応じた状態を最初�
 // ピンやクラスタ自体のクリックはLeaflet側で自動的にこちらへは伝わらないので、
 // 何も無い場所をタップ/クリックしたときだけポップアップが出る。
 map.on('click', (ev)=>{
+  if(mapPickModeActive) return; // 「地図で指定する」で地点選択待ちの間は、緯度経度ポップアップを出さない
   const { lat, lng } = ev.latlng;
   const gUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   L.popup({closeButton:true, className:'map-latlng-popup'})
@@ -2536,7 +2545,7 @@ function renderJournalMarkers(){
   journal.forEach(j=>{
     if(!j.coords) return;
     const m = L.marker(j.coords, {icon: makeJournalIcon()}).addTo(map);
-    m.on('click', ()=>openJournalDetail(j.id));
+    m.on('click', ()=>{ if(mapPickModeActive) return; openJournalDetail(j.id); });
     m.bindTooltip(escapeHtml(j.placeName), {direction:'top', offset:[0,-8]});
     journalMarkers.push(m);
   });
@@ -2671,6 +2680,9 @@ const panel = document.getElementById('panel');
 const panelContent = document.getElementById('panelContent');
 let trail = [];
 let lastShownPlace = null;
+let journalUrlActive = false; // 訪問記録モーダルがURL（?journal=）と連動して開いているか
+let mapPickModeActive = false; // 「地図で指定する」で地図クリック待ちの間、他のクリック挙動を止めるためのフラグ
+let activeMapPickCleanup = null; // ピン設置モード中にモーダルが別経路で閉じられた場合に備えた後片付け関数
 const pinIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="9" r="2.6"/><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11z"/></svg>';
 
 // ---------- 個別項目のディープリンク（?id=...） ----------
@@ -2698,6 +2710,51 @@ function clearEntityUrl(){
   const target = location.pathname;
   if(location.pathname + location.search === target) return;
   history.pushState({}, '', target);
+}
+
+// ---------- 訪問記録単体のディープリンク（?journal=...） ----------
+// 個々の訪問記録・感想コメントも、項目と同じ仕組みでURLを持たせて共有できるようにする。
+function urlForJournal(id){
+  const url = new URL(location.href);
+  url.search = '?journal=' + encodeURIComponent(id);
+  url.hash = '';
+  return url.pathname + url.search;
+}
+function absoluteUrlForJournal(id){
+  const url = new URL(location.href);
+  url.search = '?journal=' + encodeURIComponent(id);
+  url.hash = '';
+  return url.href;
+}
+function setUrlForJournal(id){
+  const target = urlForJournal(id);
+  if(location.pathname + location.search === target) return;
+  history.pushState({journalId:id}, '', target);
+}
+function clearJournalUrl(){
+  // journal= 以外のパラメータ（?id=など）が付いていた場合に巻き込んで消してしまわないよう、
+  // journalキーだけを取り除く（付いていなければ何もしない）。
+  const params = new URLSearchParams(location.search);
+  if(!params.has('journal')) return;
+  params.delete('journal');
+  const search = params.toString();
+  const target = location.pathname + (search ? '?' + search : '');
+  if(location.pathname + location.search === target) return;
+  history.pushState({}, '', target);
+}
+
+// 共有ボタン用のアイコン（項目パネル・訪問記録カードの両方から使う）
+const shareIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
+const xIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+const linkIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.3 1.3"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.3-1.3"/></svg>';
+// navigator.shareが使える環境（主にスマホ）だけ「共有」ボタンを出す。使えない場合はXへの投稿リンクとURLコピーだけを並べる。
+function renderJournalShareButtons(j){
+  const shareUrl = absoluteUrlForJournal(j.id);
+  const shareText = (j.placeName || 'ホームズ・アトラス') + 'の訪問記録 | ホームズ・アトラス';
+  const xHref = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl);
+  const webShareBtnHtml = (typeof navigator!=='undefined' && navigator.share)
+    ? `<button class="jc-share-btn" data-webshare-journal="${j.id}" title="この記録を共有する">${shareIconSvg}共有</button>` : '';
+  return `${webShareBtnHtml}<a class="jc-share-btn" href="${escapeAttr(xHref)}" target="_blank" rel="noopener noreferrer" title="Xでポストする">${xIconSvg}X</a><button class="jc-share-btn" data-copy-journal="${j.id}" title="この記録のURLをコピー">${linkIconSvg}リンクをコピー</button>`;
 }
 
 function renderPhoto(photo, entityId){
@@ -2793,9 +2850,6 @@ function showEntity(id, opts={}){
     ? `<div class="tag-row">${e.tags.map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div>`
     : '';
 
-  const shareIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
-  const xIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 5l14 14M19 5L5 19"/></svg>';
-  const linkIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.3 1.3"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.3-1.3"/></svg>';
   // navigator.shareが使える環境（主にスマホ）だけ「共有」ボタンを出す。
   // 使えない場合はXへの投稿リンクとURLコピーだけを並べる。
   const webShareBtnHtml = (typeof navigator!=='undefined' && navigator.share)
@@ -2911,6 +2965,15 @@ document.getElementById('panelClose').addEventListener('click', ()=>{
 // ブラウザの戻る/進むボタンで ?id= が変わった時に、表示側も追従させる
 window.addEventListener('popstate', ()=>{
   const id = new URLSearchParams(location.search).get('id');
+  const journalId = new URLSearchParams(location.search).get('journal');
+  // 訪問記録モーダルの開閉を先に処理してから項目パネルを処理する。
+  // （closeModal()がタイトルを一旦既定値に戻すため、この順序でないと
+  //   entity側で設定したタイトルが後から上書きされて消えてしまう）
+  if(journalId && journal.find(x=>x.id===journalId)){
+    openJournalDetail(journalId, {skipUrlUpdate:true});
+  } else if(journalUrlActive){
+    closeModal();
+  }
   if(id && DATA[id]){
     showEntity(id, {fromTrail:true, skipUrlUpdate:true});
   } else if(panel.classList.contains('open')){
@@ -2949,7 +3012,15 @@ function goToMap(id){
 // ---------- モーダル：新規項目 / 編集 ----------
 const overlay = document.getElementById('modalOverlay');
 const modalBody = document.getElementById('modalBody');
-function closeModal(){ overlay.classList.remove('open'); modalBody.innerHTML=''; }
+function closeModal(){
+  if(activeMapPickCleanup) activeMapPickCleanup(); // ピン設置モードの途中でモーダルが閉じられても、地図の状態を必ず元に戻す
+  overlay.classList.remove('open'); modalBody.innerHTML='';
+  if(journalUrlActive){
+    journalUrlActive = false;
+    clearJournalUrl();
+    document.title = 'ホームズ・アトラス';
+  }
+}
 const LEGAL_CONTACT = 'holmesatlas.info@gmail.com';
 function openLegalModal(){
   modalBody.innerHTML = `
@@ -3031,6 +3102,44 @@ function wireGeoSearchButton(requireQuery){
     });
   });
 }
+// モーダルを一時的に隠して地図を露出させ、次に地図をクリックした地点の緯度経度をonPickへ渡す。
+// モーダルのDOM（modalBody.innerHTML）自体はそのまま保持するので、入力途中の内容は消えない。
+function pickLocationOnMap(onPick){
+  overlay.classList.add('picking');
+  document.body.classList.add('map-picking');
+  mapPickModeActive = true;
+  const banner = document.createElement('div');
+  banner.className = 'map-pick-banner';
+  banner.innerHTML = `<span>地図をクリックして地点を指定してください</span><button type="button" id="mapPickCancelBtn">キャンセル</button>`;
+  document.body.appendChild(banner);
+  function cleanup(){
+    mapPickModeActive = false;
+    activeMapPickCleanup = null;
+    overlay.classList.remove('picking');
+    document.body.classList.remove('map-picking');
+    banner.remove();
+    map.off('click', onMapClick);
+  }
+  function onMapClick(ev){
+    cleanup();
+    onPick(ev.latlng);
+  }
+  map.on('click', onMapClick);
+  document.getElementById('mapPickCancelBtn').addEventListener('click', cleanup);
+  activeMapPickCleanup = cleanup;
+}
+// 新規追加・編集モーダルで共通の「地図で指定する」ボタンの挙動。
+function wireMapPickButton(){
+  const btn = document.getElementById('f-geo-map-pick');
+  if(!btn) return;
+  btn.addEventListener('click', ()=>{
+    pickLocationOnMap(latlng=>{
+      document.getElementById('f-lat').value = latlng.lat.toFixed(4);
+      document.getElementById('f-lng').value = latlng.lng.toFixed(4);
+      showToast('地図上の地点を設定しました。');
+    });
+  });
+}
 
 function openEntityModal(prefill){
   prefill = (prefill && typeof prefill.lat==='number') ? prefill : null;
@@ -3044,6 +3153,7 @@ function openEntityModal(prefill){
       <label>場所を検索して座標を設定</label>
       <div class="geo-row"><input type="text" id="f-geo-query" placeholder="地名で検索"><button type="button" class="geo-search-btn" id="f-geo-search">検索</button></div>
       <div class="geo-results" id="f-geo-results"></div>
+      <button type="button" class="geo-search-btn geo-map-pick-btn" id="f-geo-map-pick">🗺 地図で指定する</button>
       <div class="latlng-row"><input type="text" id="f-lat" placeholder="緯度" value="${prefill?prefill.lat.toFixed(4):''}"><input type="text" id="f-lng" placeholder="経度" value="${prefill?prefill.lng.toFixed(4):''}"></div>
       <div class="hint">関連度</div>
       <select id="f-relevance">
@@ -3083,6 +3193,7 @@ function openEntityModal(prefill){
   wireDraftAutosave('newEntity', 'new', newEntityDraftFields);
   typeSelect.addEventListener('change', ()=>saveDraft('newEntity', 'new', newEntityDraftFields.reduce((acc,fid)=>{ const el=document.getElementById(fid); if(el) acc[fid]=el.value; return acc; }, {})));
   wireGeoSearchButton(true);
+  wireMapPickButton();
   document.getElementById('f-cancel').addEventListener('click', closeModal);
   document.getElementById('f-submit').addEventListener('click', async ()=>{
     if(!currentUser){ showToast('投稿にはログインが必要です。'); return; }
@@ -3142,6 +3253,7 @@ function openEditModal(targetId){
       <label>座標を修正する（任意）</label>
       <div class="geo-row"><input type="text" id="f-geo-query" placeholder="場所名で再検索"><button type="button" class="geo-search-btn" id="f-geo-search">検索</button></div>
       <div class="geo-results" id="f-geo-results"></div>
+      <button type="button" class="geo-search-btn geo-map-pick-btn" id="f-geo-map-pick">🗺 地図で指定する</button>
       <div class="latlng-row"><input type="text" id="f-lat" value="${e.coords?e.coords[0]:''}"><input type="text" id="f-lng" value="${e.coords?e.coords[1]:''}"></div>
     </div>
     <div class="field">
@@ -3170,6 +3282,7 @@ function openEditModal(targetId){
   wireDraftAutosave('editEntity', targetId, editEntityDraftFields);
   if(e.type==='place'){
     wireGeoSearchButton(false);
+    wireMapPickButton();
   }
   document.getElementById('f-cancel').addEventListener('click', closeModal);
   document.getElementById('f-delete-open')?.addEventListener('click', ()=>openDeleteConfirmModal(targetId, e.name));
@@ -3575,7 +3688,8 @@ function renderJournalCard(j){
   const actionsHtml = isPrivate ? '' : `
         <button class="jc-like-btn ${liked?'liked':''}" data-like-journal="${j.id}">${liked?'♥':'♡'} ${likeCount>0?likeCount:''}</button>
         <button class="jc-reply-toggle-btn" data-reply-toggle="${j.id}">返信${replies.length>0?'（'+replies.length+'）':''}</button>
-        <button class="jc-report-btn" data-report-journal="${j.id}">通報</button>`;
+        <button class="jc-report-btn" data-report-journal="${j.id}">通報</button>
+        ${renderJournalShareButtons(j)}`;
   return `
     <div class="journal-card ${isPrivate?'journal-card-private':''}" data-journal-id="${j.id}">
       ${isPrivate ? '<div class="jc-private-badge">🔒 自分だけの記録</div>' : ''}
@@ -3789,9 +3903,32 @@ document.addEventListener('click', async (ev)=>{
   }
   const reportBtn = ev.target.closest('[data-report-journal]');
   if(reportBtn){ openReportModal(reportBtn.dataset.reportJournal); return; }
+  const webShareJournalBtn = ev.target.closest('[data-webshare-journal]');
+  if(webShareJournalBtn){
+    const jid = webShareJournalBtn.dataset.webshareJournal;
+    const j = journal.find(x=>x.id===jid);
+    if(j){
+      const shareUrl = absoluteUrlForJournal(jid);
+      const shareText = (j.placeName || 'ホームズ・アトラス') + 'の訪問記録 | ホームズ・アトラス';
+      try{ await navigator.share({title: shareText, url: shareUrl}); }
+      catch(err){ /* ユーザーが共有をキャンセルした場合などは何もしない */ }
+    }
+    return;
+  }
+  const copyJournalBtn = ev.target.closest('[data-copy-journal]');
+  if(copyJournalBtn){
+    const jid = copyJournalBtn.dataset.copyJournal;
+    try{
+      await navigator.clipboard.writeText(absoluteUrlForJournal(jid));
+      showToast('リンクをコピーしました。');
+    }catch(err){
+      showToast('コピーに失敗しました。お使いのブラウザではこの機能に対応していない可能性があります。');
+    }
+    return;
+  }
 });
 
-function openJournalDetail(id){
+function openJournalDetail(id, opts={}){
   const j = journal.find(x=>x.id===id);
   if(!j) return;
   modalBody.innerHTML = `
@@ -3801,6 +3938,9 @@ function openJournalDetail(id){
     <div class="modal-actions"><button class="modal-cancel" id="jd-close">閉じる</button></div>`;
   overlay.classList.add('open');
   document.getElementById('jd-close').addEventListener('click', closeModal);
+  if(!opts.skipUrlUpdate) setUrlForJournal(id);
+  document.title = (j.placeName || 'ホームズ・アトラス') + 'の訪問記録 | ホームズ・アトラス';
+  journalUrlActive = true;
 }
 
 // ---------- タイムライン ----------
@@ -4311,6 +4451,9 @@ document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.action-btns')
   // （SNSなどで共有された個別ページのリンクから直接開けるようにするため）
   const initialEntityId = new URLSearchParams(location.search).get('id');
   if(initialEntityId && DATA[initialEntityId]) showEntity(initialEntityId, {skipUrlUpdate:true});
+  // URLに ?journal=記録ID が付いていれば、その訪問記録を開いた状態で起動する
+  const initialJournalId = new URLSearchParams(location.search).get('journal');
+  if(initialJournalId && journal.find(x=>x.id===initialJournalId)) openJournalDetail(initialJournalId, {skipUrlUpdate:true});
 })();
 </script>
 </body>

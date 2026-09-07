@@ -500,6 +500,11 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
           <svg class="mt-ic mt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
       </span>
+      <span class="mt-div"></span>
+      <button class="mt-seg" id="labelForceBtn" title="ズームを寄せなくても地点名を表示する（重なる場所は「〇〇 他N件」とまとめて表示）" aria-pressed="false">
+        <svg class="mt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>名称表示</span>
+      </button>
     </div>
     <!-- 作品選択はネイティブの<select>をやめ、自前のボタン＋一覧に置き換えている。
          ネイティブのselectはappearance:noneで見た目を消したつもりでも、スマホの
@@ -2165,6 +2170,16 @@ coreOnlyBtn.addEventListener('click', ()=>{
   renderIndex();
 });
 
+const labelForceBtn = document.getElementById('labelForceBtn');
+labelForceBtn.addEventListener('click', ()=>{
+  forceShowLabels = !forceShowLabels;
+  labelForceBtn.classList.toggle('active', forceShowLabels);
+  labelForceBtn.setAttribute('aria-pressed', String(forceShowLabels));
+  // ズームは変えていないので zoomend は発火しない。ここで直接、表示状態を
+  // 今のズームとforceShowLabelsの組み合わせに合わせて更新する。
+  updateLabelVisibility();
+});
+
 // ---------- 作品（正典の話）ごとの地点絞り込み ----------
 // 「正典登場地のみ」の応用版。各地点データが持つrelated（関連項目）配列に
 // 選んだ作品のIDが含まれているかどうかで絞り込む。地点側のrelatedには
@@ -2320,6 +2335,9 @@ function makeJournalIcon(){
 }
 let markers = {};
 let coreOnlyFilter = false;
+// 「名称表示」ボタンがオンの間は、ズームレベルに関わらず地点名ラベル
+// （集合しているクラスタは「〇〇 他N件」表示）を常時表示する。
+let forceShowLabels = false;
 
 // ---------- 主要な通り・エリアの日本語ラベル（独自データ、地図タイルには依存しない） ----------
 const MAP_LABELS = [
@@ -2455,10 +2473,11 @@ function renderMarkers(){
     }
   });
 }
-map.on('zoomend', ()=>{
+function updateLabelVisibility(){
   const el = map.getContainer();
-  if(map.getZoom()<LABEL_VISIBLE_ZOOM) el.classList.add('hide-place-labels'); else el.classList.remove('hide-place-labels');
-});
+  if(!forceShowLabels && map.getZoom()<LABEL_VISIBLE_ZOOM) el.classList.add('hide-place-labels'); else el.classList.remove('hide-place-labels');
+}
+map.on('zoomend', updateLabelVisibility);
 map.on('zoomend', updateBasemapForZoom);
 updateBasemapForZoom(); // 初期表示のズームに応じた状態を最初に一度合わせておく
 // 登録済みの地点（ピン）以外の、地図上の任意の場所でもGoogleマップを開けるように。
@@ -2477,7 +2496,7 @@ map.on('click', (ev)=>{
     )
     .openOn(map);
 });
-if(map.getZoom()<LABEL_VISIBLE_ZOOM) map.getContainer().classList.add('hide-place-labels');
+updateLabelVisibility();
 
 let journalMarkers = [];
 function renderJournalMarkers(){

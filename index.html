@@ -120,7 +120,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .map-controls-cluster::-webkit-scrollbar{display:none;}
 .mt-div{width:1px;flex:none;align-self:center;height:22px;background:var(--line);}
 .mt-seg{display:flex;align-items:center;gap:6px;flex:none;background:none;border:none;color:var(--fog);opacity:.82;
-  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.78rem;white-space:nowrap;padding:0 12px;height:100%;}
+  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.78rem;white-space:nowrap;padding:0 12px;height:100%;
+  -webkit-tap-highlight-color:transparent;}
 .mt-seg:hover{opacity:1;}
 .mt-seg.active{color:var(--brass-light);opacity:1;font-weight:600;}
 .mt-ic{width:17px;height:17px;flex:none;}
@@ -133,9 +134,15 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
    全文を読める、という形にしている）。 */
 .mt-select-wrap{position:relative;padding:0 26px 0 12px;}
 .mt-select{appearance:none;-webkit-appearance:none;background:none;border:none;color:inherit;font:inherit;
-  cursor:pointer;white-space:nowrap;}
+  cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
 .mt-select.active{color:var(--brass-light);font-weight:600;}
 .mt-select option{color:#000;background:#fff;}
+/* 一部のスマホ用ブラウザでは、選択肢を選び終わった直後に、外したはずの
+   ネイティブの見た目（白背景の枠）が一瞬だけ残って見えてしまうことがあった。
+   フォーカス・タップ時の背景色をこちらで明示的に上書きし、白い枠が
+   ちらつかないようにしている。 */
+.mt-select:focus,
+.mt-select:active{background:transparent!important;color:inherit!important;-webkit-appearance:none!important;}
 .mt-chevron{position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.75;}
 @media (max-width:480px){
   .mt-seg{padding:0 9px;gap:5px;}
@@ -158,7 +165,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
   display:flex;align-items:center;justify-content:center;border-radius:50%;
   background:linear-gradient(180deg,#2a3547,var(--ink-2));border:1px solid var(--brass);
   box-shadow:0 4px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
-  color:var(--fog);cursor:pointer;}
+  color:var(--fog);cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .map-locate-btn .mt-ic{width:20px;height:20px;}
 .map-locate-btn:hover{color:#fff;}
 .map-locate-btn.active{color:var(--brass-light);border-color:var(--brass-light);}
@@ -193,7 +200,8 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .map-door-btn{position:absolute;bottom:120px;right:16px;z-index:500;display:flex;align-items:center;
   gap:6px;height:40px;padding:0 14px;background:var(--burgundy);border:1.5px solid var(--brass-light);
   border-radius:20px;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);
-  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.82rem;font-weight:700;white-space:nowrap;}
+  cursor:pointer;font-family:'Crimson Pro',serif;font-size:.82rem;font-weight:700;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;}
 .map-door-btn:hover{filter:brightness(1.12);}
 .map-door-btn:focus{outline:none;}
 .map-door-btn:focus-visible{outline:2px solid var(--fog);outline-offset:2px;}
@@ -2135,9 +2143,12 @@ function populateWorkFilterSelect(){
   // 先頭の「作品選択」は、まだ何も選んでいないことを示すだけのプレースホルダー
   // （disabled+hiddenなので一覧には出ず、選び直すこともできない）。
   // 「全作品表示」はそれとは別の、実際に選べる一つの選択肢として並べている。
+  // ★一旦、正典外（パスティーシュ等）の作品は選択肢から外し、正典作品のみを
+  // 並べている（pasticheWorksの集計自体は残してあるので、元に戻す場合は
+  // 下のコメントアウトを外すだけでよい）。
   sel.innerHTML = `<option value="" disabled hidden>作品選択</option><option value="__all__">全作品表示</option>`
-    + (canonWorks.length ? `<optgroup label="正典（コナン・ドイル）">${optHtml(canonWorks)}</optgroup>` : '')
-    + (pasticheWorks.length ? `<optgroup label="正典外（パスティーシュ等）">${optHtml(pasticheWorks)}</optgroup>` : '');
+    + (canonWorks.length ? `<optgroup label="正典（コナン・ドイル）">${optHtml(canonWorks)}</optgroup>` : '');
+    // + (pasticheWorks.length ? `<optgroup label="正典外（パスティーシュ等）">${optHtml(pasticheWorks)}</optgroup>` : '');
   if(prevValue && DATA[prevValue] && DATA[prevValue].type==='work'){
     sel.value = prevValue;
   } else if(prevValue === '__all__'){
@@ -2161,7 +2172,10 @@ workFilterSelect.addEventListener('change', ()=>{
   const v = workFilterSelect.value;
   workFilter = (v && v !== '__all__') ? v : null;
   workFilterSelect.classList.toggle('active', !!workFilter);
-  sizeWorkFilterSelect();
+  // 選択直後に幅を変えると、一部のスマホ用ブラウザでネイティブの選択UIが
+  // 閉じきる前に描画が乱れ、白い枠が一瞬残って見えることがあった。
+  // 1フレーム待ってから幅を測り直すことで、その描画崩れを避けている。
+  requestAnimationFrame(sizeWorkFilterSelect);
   renderMarkers();
   renderIndex();
   if(!workFilter) return;

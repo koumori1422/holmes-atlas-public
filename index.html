@@ -9,6 +9,15 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="ホームズ・アトラス">
 <meta property="og:description" content="シャーロック・ホームズ作品に登場する地名・人物・作品情報を、地図と索引でたどれるファンサイトです。">
+<!-- サイトの実際のURL（GitHub Pagesの発行URL、または独自ドメイン）が分かれば、
+     下の1行を有効にしてcontentを差し替えてください（一部SNSはog:urlが無いと
+     プレビューが正しく出ないことがあります）。
+<meta property="og:url" content="https://your-domain-here/"> -->
+<meta property="og:image" content="https://commons.wikimedia.org/wiki/Special:FilePath/Sherlock_Holmes_and_Professor_Moriarty_at_the_Reichenbach_Falls_-_Sidney_Paget.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ホームズ・アトラス">
+<meta name="twitter:description" content="シャーロック・ホームズ作品に登場する地名・人物・作品情報を、地図と索引でたどれるファンサイトです。">
+<meta name="twitter:image" content="https://commons.wikimedia.org/wiki/Special:FilePath/Sherlock_Holmes_and_Professor_Moriarty_at_the_Reichenbach_Falls_-_Sidney_Paget.jpg">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
@@ -287,6 +296,10 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .badge-misc{background:none;border:1px solid var(--moss);color:var(--moss)!important;}
 .tag-row{margin:0 0 10px;}
 .tag-chip{display:inline-block;font-size:.68rem;padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--slate);background:rgba(171,131,71,0.08);margin:0 5px 5px 0;}
+.share-row{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;}
+.share-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--line);color:var(--slate);font-size:.78rem;padding:4px 11px;border-radius:12px;cursor:pointer;text-decoration:none;font-family:inherit;}
+.share-btn:hover{border-color:var(--brass);color:var(--ink);}
+.share-btn svg{width:14px;height:14px;flex:none;}
 .panel-body h3{font-family:'Playfair Display',serif;font-weight:600;font-size:1.4rem;margin:2px 0 12px;color:var(--ink);}
 .panel-body img.entity-img{width:100%;border-radius:3px;margin-bottom:14px;border:1px solid var(--line);}
 .photo-row{display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;}
@@ -2637,6 +2650,14 @@ function urlForEntity(id){
   url.hash = '';
   return url.pathname + url.search;
 }
+// 共有・コピー用には、他の端末やアプリでもそのまま開ける絶対URLが要るので、
+// urlForEntity（pathname+searchだけ）とは別に、オリジンまで含めた形で返す。
+function absoluteUrlForEntity(id){
+  const url = new URL(location.href);
+  url.search = '?id=' + encodeURIComponent(id);
+  url.hash = '';
+  return url.href;
+}
 function setUrlForEntity(id){
   const target = urlForEntity(id);
   if(location.pathname + location.search === target) return; // 既に同じURLなら履歴を汚さない
@@ -2741,6 +2762,19 @@ function showEntity(id, opts={}){
     ? `<div class="tag-row">${e.tags.map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div>`
     : '';
 
+  const shareIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
+  const xIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+  const linkIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.3 1.3"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.3-1.3"/></svg>';
+  // navigator.shareが使える環境（主にスマホ）だけ「共有」ボタンを出す。
+  // 使えない場合はXへの投稿リンクとURLコピーだけを並べる。
+  const webShareBtnHtml = (typeof navigator!=='undefined' && navigator.share)
+    ? `<button class="share-btn" id="webShareBtn" title="この項目を共有する">${shareIconSvg}共有</button>` : '';
+  const shareRowHtml = `<div class="share-row">
+      ${webShareBtnHtml}
+      <a class="share-btn" id="xShareLink" href="#" target="_blank" rel="noopener noreferrer" title="Xでポストする">${xIconSvg}Xでポスト</a>
+      <button class="share-btn" id="copyLinkBtn" title="この項目のURLをコピー">${linkIconSvg}リンクをコピー</button>
+    </div>`;
+
   panelContent.innerHTML = `
     <div class="trail">${trailHtml}</div>
     <div class="panel-body">
@@ -2748,6 +2782,7 @@ function showEntity(id, opts={}){
       ${favBtnHtml}
       <h3>${e.name}</h3>
       ${tagsHtml}
+      ${shareRowHtml}
       ${mapJumpHtml}
       ${imgHtml}
       ${descHtml}
@@ -2796,6 +2831,24 @@ function showEntity(id, opts={}){
     showEntity(id, {fromTrail:true});
     renderIndex();
   });
+  {
+    const shareUrl = absoluteUrlForEntity(id);
+    const shareText = e.name + ' | ホームズ・アトラス';
+    document.getElementById('xShareLink')?.setAttribute('href',
+      'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl));
+    document.getElementById('webShareBtn')?.addEventListener('click', async ()=>{
+      try{ await navigator.share({title: shareText, url: shareUrl}); }
+      catch(err){ /* ユーザーが共有をキャンセルした場合などは何もしない */ }
+    });
+    document.getElementById('copyLinkBtn')?.addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(shareUrl);
+        showToast('リンクをコピーしました。');
+      }catch(err){
+        showToast('コピーに失敗しました。お使いのブラウザではこの機能に対応していない可能性があります。');
+      }
+    });
+  }
   document.getElementById('addPhotoBtn')?.addEventListener('click', ()=>{
     if(!currentUser){ showToast('写真の追加にはログインが必要です。'); return; }
     openPhotoModal(id);

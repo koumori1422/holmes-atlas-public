@@ -2537,7 +2537,7 @@ function renderJournalMarkers(){
     if(!j.coords) return;
     const m = L.marker(j.coords, {icon: makeJournalIcon()}).addTo(map);
     m.on('click', ()=>openJournalDetail(j.id));
-    m.bindTooltip(j.placeName, {direction:'top', offset:[0,-8]});
+    m.bindTooltip(escapeHtml(j.placeName), {direction:'top', offset:[0,-8]});
     journalMarkers.push(m);
   });
 }
@@ -2597,7 +2597,7 @@ function renderIndex(){
       ['place','person','work','work-pastiche','term'].forEach(t=>{
         if(favByType[t].length===0) return;
         html += `<div class="fav-subheader">${sectionLabels[t]}</div>`;
-        favByType[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${DATA[id].name}</button>`; });
+        favByType[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${escapeHtml(DATA[id].name)}</button>`; });
       });
     }
     html += `</div></div>`;
@@ -2609,7 +2609,7 @@ function renderIndex(){
     html += `<div class="index-group">
       <button class="index-group-header" data-group="${t}"><span class="igh-arrow">${open?'▾':'▸'}</span>${sectionLabels[t]}<span class="igh-count">${groups[t].length}</span></button>
       <div class="index-group-items" style="display:${open?'block':'none'}">`;
-    groups[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${DATA[id].name}</button>`; });
+    groups[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${escapeHtml(DATA[id].name)}</button>`; });
     html += `</div></div>`;
   });
   // 関連サイト（絞り込みの対象外。件数が少なく、常に見えていて困らないため）
@@ -2757,13 +2757,13 @@ function showEntity(id, opts={}){
   const trailHtml = trail.map((tid,i)=>{
     const sep = i>0 ? '<span class="sep">›</span>' : '';
     const cur = tid===id;
-    return sep + `<button ${cur?'disabled style="opacity:.5;text-decoration:none;cursor:default"':''} data-id="${tid}">${DATA[tid].name}</button>`;
+    return sep + `<button ${cur?'disabled style="opacity:.5;text-decoration:none;cursor:default"':''} data-id="${tid}">${escapeHtml(DATA[tid].name)}</button>`;
   }).join('');
 
   const relatedHtml = (e.related||[]).map(rid=>{
     const r = DATA[rid]; if(!r) return '';
     const jump = (r.type==='place' && r.coords) ? `<button class="chip-map-btn" data-goto="${rid}" title="${escapeAttr(r.name)}を地図で見る">${pinIconSvg}</button>` : '';
-    return `<span class="chip-wrap"><button class="chip" data-id="${rid}"><span class="dot dot-${entityClass(r)}"></span>${r.name}</button>${jump}</span>`;
+    return `<span class="chip-wrap"><button class="chip" data-id="${rid}"><span class="dot dot-${entityClass(r)}"></span>${escapeHtml(r.name)}</button>${jump}</span>`;
   }).join('');
 
   const legacyImgCreditBits = [];
@@ -2811,7 +2811,7 @@ function showEntity(id, opts={}){
     <div class="panel-body">
       <span class="type-badge badge-${entityClass(e)}">${entityLabel(e)}</span>${e.relevance==='peripheral' ? ' <span class="type-badge badge-peripheral">周辺情報</span>' : (e.relevance==='misc' ? ' <span class="type-badge badge-misc">その他</span>' : '')}
       ${favBtnHtml}
-      <h3>${e.name}</h3>
+      <h3>${escapeHtml(e.name)}</h3>
       ${tagsHtml}
       ${shareRowHtml}
       ${mapJumpHtml}
@@ -2894,16 +2894,19 @@ function showEntity(id, opts={}){
   });
   panel.classList.add('open');
 }
-document.getElementById('panelClose').addEventListener('click', ()=>{
+function closePanel(){
   panel.classList.remove('open');
   selectedEntityId = null;
   refreshSelectedClusterHighlight();
-  clearEntityUrl();
   document.title = 'ホームズ・アトラス';
   if(lastShownPlace){
     map.flyTo(lastShownPlace.coords, lastShownPlace.zoom, {duration:0.6});
     lastShownPlace = null;
   }
+}
+document.getElementById('panelClose').addEventListener('click', ()=>{
+  closePanel();
+  clearEntityUrl();
 });
 // ブラウザの戻る/進むボタンで ?id= が変わった時に、表示側も追従させる
 window.addEventListener('popstate', ()=>{
@@ -2911,14 +2914,7 @@ window.addEventListener('popstate', ()=>{
   if(id && DATA[id]){
     showEntity(id, {fromTrail:true, skipUrlUpdate:true});
   } else if(panel.classList.contains('open')){
-    panel.classList.remove('open');
-    selectedEntityId = null;
-    refreshSelectedClusterHighlight();
-    document.title = 'ホームズ・アトラス';
-    if(lastShownPlace){
-      map.flyTo(lastShownPlace.coords, lastShownPlace.zoom, {duration:0.6});
-      lastShownPlace = null;
-    }
+    closePanel();
   }
 });
 
@@ -2982,7 +2978,7 @@ overlay.addEventListener('click', ev=>{ if(ev.target===overlay) closeModal(); })
 
 function relatedChecklist(excludeId, preselected=[]){
   const ids = Object.keys(DATA).filter(id=>id!==excludeId).sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja'));
-  return ids.map(id=>`<label><input type="checkbox" value="${id}" ${preselected.includes(id)?'checked':''}> <span class="dot dot-${entityClass(DATA[id])}"></span>${DATA[id].name}</label>`).join('');
+  return ids.map(id=>`<label><input type="checkbox" value="${id}" ${preselected.includes(id)?'checked':''}> <span class="dot dot-${entityClass(DATA[id])}"></span>${escapeHtml(DATA[id].name)}</label>`).join('');
 }
 
 // 新規追加・編集モーダルで共通の「メイン画像＋作者・ライセンス・出典URL」欄。
@@ -3136,7 +3132,7 @@ function openEditModal(targetId){
   const e = DATA[targetId];
   let uploadedImageData = null;
   modalBody.innerHTML = `
-    <h3>編集する — ${e.name}</h3>
+    <h3>編集する — ${escapeHtml(e.name)}</h3>
     <div class="modal-sub">${reviewModalSub('保存するとその場で反映されます。')}</div>
     <div class="field"><label>名称</label><input type="text" id="f-name" value="${escapeAttr(e.name)}"></div>
     <div class="field"><label>新しい説明文</label><textarea id="f-desc">${escapeHtml(e.desc)}</textarea><div class="hint">他の項目名を <code>[[ホームズ]]</code> のように二重角括弧で囲むと、自動でリンクになります（全角の <code>［［ ］］｜</code> でも構いません）。</div></div>
@@ -3506,7 +3502,7 @@ function openPhotoModal(entityId){
   const e = DATA[entityId];
   let uploadedImageData = null;
   modalBody.innerHTML = `
-    <h3>写真を追加 — ${e.name}</h3>
+    <h3>写真を追加 — ${escapeHtml(e.name)}</h3>
     <div class="modal-sub">${reviewModalSub('その場でギャラリーに追加されます。')}Wikimedia Commonsなどの画像を使う場合は、作者・ライセンス・出典URLもあわせて入力しておくと安心です。</div>
     <div class="field"><label>画像</label>
       <input type="file" class="file-input" id="ph-image-file" accept="image/*">
@@ -3818,7 +3814,7 @@ document.getElementById('timelineToggle').addEventListener('click', ()=>{
 function renderTimeline(){
   const items = journal.slice().sort((a,b)=>b.createdAt-a.createdAt);
   const html = items.length ? items.map(j=>{
-    const label = j.entityId ? (DATA[j.entityId]?.name || j.placeName) : j.placeName + '　<span class="empty-msg">（アトラス未登録）</span>';
+    const label = j.entityId ? escapeHtml(DATA[j.entityId]?.name || j.placeName) : escapeHtml(j.placeName) + '　<span class="empty-msg">（アトラス未登録）</span>';
     return `<div class="journal-card" data-tl-entity="${j.entityId||''}" data-tl-lat="${j.coords?j.coords[0]:''}" data-tl-lng="${j.coords?j.coords[1]:''}" style="cursor:pointer;">
       <div class="jc-place">${label}</div>
       ${renderJournalCard(j)}
@@ -3940,7 +3936,7 @@ function renderMyBook(){
   const tracksHtml = COLLECTION_TRACKS.map(t=>renderTrackCard(t, computeTrackProgress(t, myPosts))).join('');
   const statsHtml = summaryHtml + tracksHtml;
   const listHtml = myPosts.length ? myPosts.map(j=>{
-    const label = j.entityId ? (DATA[j.entityId]?.name || j.placeName) : j.placeName + '　<span class="empty-msg">（アトラス未登録）</span>';
+    const label = j.entityId ? escapeHtml(DATA[j.entityId]?.name || j.placeName) : escapeHtml(j.placeName) + '　<span class="empty-msg">（アトラス未登録）</span>';
     return `<div class="journal-card" data-tl-entity="${j.entityId||''}" data-tl-lat="${j.coords?j.coords[0]:''}" data-tl-lng="${j.coords?j.coords[1]:''}" style="cursor:pointer;">
       <div class="jc-place">${label}</div>
       ${renderJournalCard(j)}

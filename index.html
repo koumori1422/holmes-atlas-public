@@ -66,9 +66,18 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 .action-btns{display:flex;gap:10px;flex-wrap:wrap;}
 .menu-toggle{display:none;}
 
-.index{position:relative;background:var(--ink-2);border-right:1px solid var(--line);overflow-y:auto;padding:14px 0 20px;}
-.index-close{display:none;position:absolute;top:6px;right:10px;z-index:1;background:none;border:none;font-size:1.6rem;line-height:1;color:var(--slate);cursor:pointer;padding:4px 8px;}
+.index{display:flex;flex-direction:column;background:var(--ink-2);border-right:1px solid var(--line);min-height:0;}
+.index-toolbar{flex:none;display:flex;align-items:center;gap:6px;padding:10px 10px;border-bottom:1px solid var(--line);}
+.index-filter-wrap{position:relative;flex:1 1 auto;min-width:0;}
+.index-filter-input{width:100%;box-sizing:border-box;background:var(--ink);border:1px solid var(--line);color:var(--fog);font-size:.82rem;padding:6px 26px 6px 10px;border-radius:4px;font-family:inherit;}
+.index-filter-input::placeholder{color:var(--slate);}
+.index-filter-input:focus{outline:none;border-color:var(--brass);}
+.index-filter-clear-btn{position:absolute;top:50%;right:4px;transform:translateY(-50%);background:none;border:none;color:var(--slate);font-size:1.1rem;line-height:1;cursor:pointer;padding:2px 6px;}
+.index-filter-clear-btn:hover{color:var(--burgundy);}
+.index-close{display:none;flex:none;background:none;border:none;font-size:1.5rem;line-height:1;color:var(--slate);cursor:pointer;padding:2px 6px;}
 .index-close:hover{color:var(--burgundy);}
+.index-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 0 20px;}
+.index-filter-empty{padding:16px;font-size:.82rem;color:var(--slate);font-style:italic;}
 .index-group-header{display:flex;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:none;font-weight:600;font-size:.78rem;color:var(--brass-light);padding:9px 16px;margin:0;border-bottom:1px solid var(--line);border-top:1px solid var(--line);cursor:pointer;}
 .index-group-header:hover{background:rgba(171,131,71,.1);}
 .igh-arrow{font-size:.7rem;width:10px;}
@@ -443,7 +452,7 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
 
 @media (max-width:760px){
   .app{grid-template-columns:1fr;grid-template-rows:56px 1fr;}
-  .index{position:absolute;top:56px;left:0;bottom:0;width:240px;z-index:1000;padding-top:40px;transform:translateX(-100%);transition:transform .25s ease;}
+  .index{position:absolute;top:56px;left:0;bottom:0;width:240px;z-index:1000;transform:translateX(-100%);transition:transform .25s ease;}
   .index.open{transform:translateX(0);}
   .index-toggle{display:inline-block;}
   .index-close{display:inline-block;}
@@ -480,7 +489,16 @@ button,input,select,textarea{font-family:'Crimson Pro',serif;}
     <button class="hbtn menu-toggle" id="menuToggle">☰ メニュー</button>
   </div>
 
-  <div class="index" id="index"></div>
+  <div class="index" id="index">
+    <div class="index-toolbar">
+      <div class="index-filter-wrap">
+        <input type="text" id="indexFilterInput" class="index-filter-input" placeholder="索引を絞り込み…" autocomplete="off">
+        <button type="button" class="index-filter-clear-btn" id="indexFilterClearBtn" title="クリア" style="display:none;">×</button>
+      </div>
+      <button class="index-close" id="indexClose" title="索引を閉じる" aria-label="索引を閉じる">×</button>
+    </div>
+    <div class="index-scroll" id="indexScroll"></div>
+  </div>
 
   <div class="stage">
     <div id="map"></div>
@@ -2531,11 +2549,18 @@ const EXTERNAL_LINKS = [
 ];
 
 let indexOpenGroups = new Set();
+// 索引の項目数が増えてスクロールが大変にならないよう、索引だけで使える
+// 絞り込みテキストボックス。既存の検索（fuzzyMatch）と同じロジックで、
+// 一致した項目だけが残る（該当ゼロのジャンルはグループごと非表示）。
+let indexFilterQuery = '';
 function renderIndex(){
   const indexEl = document.getElementById('index');
+  const scrollEl = document.getElementById('indexScroll');
+  const q = indexFilterQuery.trim();
   const groups = {place:[],person:[],work:[],'work-pastiche':[],term:[]};
   Object.keys(DATA).forEach(id=>{
     const e = DATA[id];
+    if(q && !fuzzyMatch(e.name, q)) return;
     if(e.type==='work'){
       (e.canon ? groups.work : groups['work-pastiche']).push(id);
     } else if(e.type==='place'){
@@ -2548,39 +2573,46 @@ function renderIndex(){
   });
   Object.values(groups).forEach(arr=>arr.sort((a,b)=>DATA[a].name.localeCompare(DATA[b].name,'ja')));
   const sectionLabels = {place:'地名', person:'人物', work:'作品（正典）', 'work-pastiche':'作品（正典外）', term:'用語', links:'関連サイト'};
-  let html='<button class="index-close" id="indexClose" title="索引を閉じる" aria-label="索引を閉じる">×</button>';
+  let html='';
+  const totalMatches = Object.values(groups).reduce((a,arr)=>a+arr.length, 0);
+  if(q && totalMatches===0){
+    html += `<div class="index-filter-empty">「${escapeHtml(q)}」に一致する項目が見つかりませんでした。</div>`;
+  }
 
-  // お気に入り（ジャンル別）
-  const favOpen = indexOpenGroups.has('favorites');
+  // お気に入り（ジャンル別。絞り込み中は該当する項目だけに絞られる）
   const favByType = {place:[], person:[], work:[], 'work-pastiche':[], term:[]};
   ['place','person','work','work-pastiche','term'].forEach(t=>{
     favByType[t] = groups[t].filter(id=>favorites.includes(id));
   });
   const favTotal = Object.values(favByType).reduce((a,arr)=>a+arr.length, 0);
-  html += `<div class="index-group">
-    <button class="index-group-header" data-group="favorites"><span class="igh-arrow">${favOpen?'▾':'▸'}</span>★ お気に入り<span class="igh-count">${favTotal}</span></button>
-    <div class="index-group-items" style="display:${favOpen?'block':'none'}">`;
-  if(favTotal===0){
-    html += `<div class="alias-list-empty">まだありません。項目を開いて☆お気に入りボタンで登録できます。</div>`;
-  } else {
-    ['place','person','work','work-pastiche','term'].forEach(t=>{
-      if(favByType[t].length===0) return;
-      html += `<div class="fav-subheader">${sectionLabels[t]}</div>`;
-      favByType[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${DATA[id].name}</button>`; });
-    });
+  // 絞り込み中は、結果が見えるようそのジャンルを強制的に開いた状態で表示する
+  const favOpen = q ? favTotal>0 : indexOpenGroups.has('favorites');
+  if(!q || favTotal>0){
+    html += `<div class="index-group">
+      <button class="index-group-header" data-group="favorites"><span class="igh-arrow">${favOpen?'▾':'▸'}</span>★ お気に入り<span class="igh-count">${favTotal}</span></button>
+      <div class="index-group-items" style="display:${favOpen?'block':'none'}">`;
+    if(favTotal===0){
+      html += `<div class="alias-list-empty">まだありません。項目を開いて☆お気に入りボタンで登録できます。</div>`;
+    } else {
+      ['place','person','work','work-pastiche','term'].forEach(t=>{
+        if(favByType[t].length===0) return;
+        html += `<div class="fav-subheader">${sectionLabels[t]}</div>`;
+        favByType[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${DATA[id].name}</button>`; });
+      });
+    }
+    html += `</div></div>`;
   }
-  html += `</div></div>`;
 
   ['place','person','work','work-pastiche','term'].forEach(t=>{
     if(groups[t].length===0) return;
-    const open = indexOpenGroups.has(t);
+    const open = q ? true : indexOpenGroups.has(t);
     html += `<div class="index-group">
       <button class="index-group-header" data-group="${t}"><span class="igh-arrow">${open?'▾':'▸'}</span>${sectionLabels[t]}<span class="igh-count">${groups[t].length}</span></button>
       <div class="index-group-items" style="display:${open?'block':'none'}">`;
     groups[t].forEach(id=>{ html += `<button class="index-item" data-id="${id}">${DATA[id].name}</button>`; });
     html += `</div></div>`;
   });
-  // 関連サイト
+  // 関連サイト（絞り込みの対象外。件数が少なく、常に見えていて困らないため）
   const linksOpen = indexOpenGroups.has('links');
   html += `<div class="index-group">
     <button class="index-group-header" data-group="links"><span class="igh-arrow">${linksOpen?'▾':'▸'}</span>${sectionLabels.links}<span class="igh-count">${EXTERNAL_LINKS.length}</span></button>
@@ -2608,16 +2640,15 @@ function renderIndex(){
 
   html += `<div class="site-license">本サイトの説明文は <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a> で公開しています（出典を明記すれば自由にご利用いただけます）。画像は個別に出典・ライセンスを表示しています。</div>`;
   html += `<div class="site-license"><button class="link-btn" id="openLegalBtn">利用規約・プライバシーポリシー</button>（本サイトは個人が趣味で開発・運営しています）</div>`;
-  indexEl.innerHTML = html;
-  document.getElementById('indexClose')?.addEventListener('click', ()=>indexEl.classList.remove('open'));
+  scrollEl.innerHTML = html;
   document.getElementById('openLegalBtn')?.addEventListener('click', openLegalModal);
-  indexEl.querySelectorAll('.index-item[data-id]').forEach(btn=>btn.addEventListener('click', ()=>{ showEntity(btn.dataset.id); indexEl.classList.remove('open'); }));
+  scrollEl.querySelectorAll('.index-item[data-id]').forEach(btn=>btn.addEventListener('click', ()=>{ showEntity(btn.dataset.id); indexEl.classList.remove('open'); }));
   document.getElementById('aliasAddStandaloneBtn')?.addEventListener('click', (ev)=>{
     ev.stopPropagation();
     if(!currentUser){ showToast('辞書の登録にはログインが必要です。'); return; }
     openAliasModal();
   });
-  indexEl.querySelectorAll('[data-del-alias]').forEach(btn=>{
+  scrollEl.querySelectorAll('[data-del-alias]').forEach(btn=>{
     btn.addEventListener('click', async (ev)=>{
       ev.stopPropagation();
       if(!confirm('この対応を削除します。よろしいですか？')) return;
@@ -2626,7 +2657,7 @@ function renderIndex(){
       showToast('削除しました。');
     });
   });
-  indexEl.querySelectorAll('.index-group-header').forEach(btn=>{
+  scrollEl.querySelectorAll('.index-group-header').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const g = btn.dataset.group;
       if(indexOpenGroups.has(g)) indexOpenGroups.delete(g); else indexOpenGroups.add(g);
@@ -4235,6 +4266,31 @@ document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.nearby-panel'
 
 // ---------- 索引トグル・モバイルメニュー ----------
 document.getElementById('indexToggle').addEventListener('click', ()=>document.getElementById('index').classList.toggle('open'));
+document.getElementById('indexClose').addEventListener('click', ()=>document.getElementById('index').classList.remove('open'));
+
+// ---------- 索引の絞り込みボックス ----------
+// #indexFilterInput は毎回のrenderIndex()で作り直されない静的な要素なので、
+// 1文字打つたびに再描画してもフォーカスが飛ばない（描画対象は#indexScrollのみ）。
+{
+  const indexFilterInput = document.getElementById('indexFilterInput');
+  const indexFilterClearBtn = document.getElementById('indexFilterClearBtn');
+  let indexFilterDebounce = null;
+  indexFilterInput.addEventListener('input', ()=>{
+    indexFilterClearBtn.style.display = indexFilterInput.value ? 'inline-block' : 'none';
+    clearTimeout(indexFilterDebounce);
+    indexFilterDebounce = setTimeout(()=>{
+      indexFilterQuery = indexFilterInput.value;
+      renderIndex();
+    }, 120);
+  });
+  indexFilterClearBtn.addEventListener('click', ()=>{
+    indexFilterInput.value = '';
+    indexFilterClearBtn.style.display = 'none';
+    indexFilterQuery = '';
+    renderIndex();
+    indexFilterInput.focus();
+  });
+}
 const actionBtnsEl = document.getElementById('actionBtns');
 document.getElementById('menuToggle').addEventListener('click', (ev)=>{ ev.stopPropagation(); actionBtnsEl.classList.toggle('open'); });
 actionBtnsEl.querySelectorAll('.hbtn').forEach(btn=>btn.addEventListener('click', ()=>actionBtnsEl.classList.remove('open')));
